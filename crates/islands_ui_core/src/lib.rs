@@ -3,31 +3,45 @@ use bevy_ecs::{
     component::Component,
     query::Added,
     schedule::IntoSystemConfigs,
-    system::{BoxedSystem, IntoSystem, Query, SystemState},
+    system::{BoxedSystem, IntoSystem, Query, ResMut, Resource, SystemParam, SystemState},
     world::World,
 };
-use std::{any::Any, collections::VecDeque, ops::Deref, sync::Arc};
+use std::{
+    any::Any,
+    collections::{HashMap, VecDeque},
+    ops::Deref,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+};
 
 pub struct IslandsUiPlugin;
 
 impl Plugin for IslandsUiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
+        app.init_resource::<StateSetter>().add_systems(
             PreUpdate,
-            (initial_compose, run_queued_systems, recompose).chain(),
+            (initial_compose, run_queued_systems, set_states, recompose).chain(),
         );
     }
+}
+
+// ===
+// UniqueId
+// ===
+
+static UNIQUE_ID: AtomicUsize = AtomicUsize::new(0);
+
+fn unique_id() -> usize {
+    UNIQUE_ID.fetch_add(1, Ordering::Relaxed)
 }
 
 // ===
 // Scope
 // ===
 
-#[derive(Default, Clone, Copy, PartialEq, Eq, Hash, Debug)]
-struct ScopeId(usize);
-
 pub struct Scope<'a> {
-    id: ScopeId,
     composer: Arc<dyn AnyCompose + 'a>,
     state_index: usize,
     states: Vec<DynState>,
@@ -39,7 +53,6 @@ pub struct Scope<'a> {
 impl Default for Scope<'_> {
     fn default() -> Self {
         Self {
-            id: Default::default(),
             composer: Arc::new(()),
             state_index: Default::default(),
             states: Default::default(),
@@ -51,9 +64,8 @@ impl Default for Scope<'_> {
 }
 
 impl Scope<'_> {
-    fn new(id: ScopeId, composer: Arc<dyn AnyCompose>) -> Self {
+    fn new(composer: Arc<dyn AnyCompose>) -> Self {
         Self {
-            id,
             composer,
             state_index: 0,
             states: Vec::new(),
@@ -75,10 +87,8 @@ impl Scope<'_> {
         let value = Arc::new(initial_value);
 
         let dyn_state = DynState {
-            // TODO: These two should be random and unique
-            id: StateId(self.state_index),
+            id: StateId(unique_id()),
             changed: StateChanged::Changed,
-            scope_id: self.id,
             value: value.clone(),
         };
 
@@ -135,6 +145,34 @@ impl Scope<'_> {
         let sys: BoxedSystem<(), ()> = Box::from(IntoSystem::into_system(system));
         self.queued_systems.push(sys);
     }
+
+    pub fn use_system_once<M>(&mut self, system: impl IntoSystem<(), (), M>) {
+        let once = self.use_state(());
+
+        if matches!(once.changed, StateChanged::Changed) {
+            self.use_system(system);
+        }
+    }
+}
+
+// ===
+// SetState
+// ===
+
+#[derive(Resource, Default)]
+struct StateSetter {
+    queued: HashMap<StateId, Arc<dyn Any + Send + Sync>>,
+}
+
+#[derive(SystemParam)]
+pub struct SetState<'w> {
+    setter: ResMut<'w, StateSetter>,
+}
+
+impl SetState<'_> {
+    pub fn set<T: Send + Sync + 'static>(&mut self, state: &State<T>, value: T) {
+        self.setter.queued.insert(state.id, Arc::new(value));
+    }
 }
 
 // ===
@@ -154,7 +192,6 @@ pub enum StateChanged {
 struct DynState {
     id: StateId,
     changed: StateChanged,
-    scope_id: ScopeId,
     value: Arc<dyn Any + Send + Sync>,
 }
 
@@ -163,7 +200,6 @@ impl DynState {
         self.value.clone().downcast::<T>().ok().map(|value| State {
             id: self.id,
             changed: self.changed,
-            scope_id: self.scope_id,
             value,
         })
     }
@@ -173,7 +209,6 @@ impl DynState {
 pub struct State<T> {
     id: StateId,
     changed: StateChanged,
-    scope_id: ScopeId,
     value: Arc<T>,
 }
 
@@ -277,9 +312,8 @@ impl<C: Compose> AnyCompose for C {
             return;
         };
 
-        let child_scope_id = ScopeId(scope.id.0 + 1);
         let child_compose = Arc::new(child);
-        let mut child_scope = Scope::new(child_scope_id, child_compose.clone());
+        let mut child_scope = Scope::new(child_compose.clone());
 
         child_compose.recompose_scope(&mut child_scope);
 
@@ -293,9 +327,7 @@ impl<C: Compose> AnyCompose for C {
 
 fn initial_compose(mut roots: Query<&mut Root, Added<Root>>) {
     for mut root in roots.iter_mut() {
-        // TODO: This should be random and unique
-        let scope_id = ScopeId(0);
-        let mut scope = Scope::new(scope_id, root.compose.clone());
+        let mut scope = Scope::new(root.compose.clone());
 
         root.compose.recompose_scope(&mut scope);
 
@@ -327,6 +359,29 @@ fn run_queued_systems(world: &mut World) {
         system.initialize(world);
         system.run((), world);
         system.apply_deferred(world);
+    }
+}
+
+fn set_states(mut setter: SetState, mut roots: Query<&mut Root>) {
+    for mut root in roots.iter_mut() {
+        let Some(scope) = &mut root.scope else {
+            continue;
+        };
+
+        let mut scopes = VecDeque::from([scope]);
+
+        while let Some(scope) = scopes.pop_front() {
+            for state in scope.states.iter_mut() {
+                let Some(new_value) = setter.setter.queued.remove(&state.id) else {
+                    continue;
+                };
+
+                state.value = new_value;
+                state.changed = StateChanged::Queued;
+            }
+
+            scopes.extend(scope.children.iter_mut());
+        }
     }
 }
 

@@ -6,7 +6,7 @@ use bevy::{
     },
 };
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use islands_ui_core::{Compose, IslandsUiPlugin, Root, Scope};
+use islands_ui_core::{Compose, IslandsUiPlugin, Root, Scope, SetState};
 
 fn main() {
     App::new()
@@ -62,13 +62,10 @@ impl Compose for Second {
     fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
         let count = cx.use_state(0);
 
-        cx.use_system(|q: Query<&Name>| {
-            println!("Querying names, len: {}", q.iter().len());
-            for name in q.iter() {
-                println!("Name: {:?}", name);
-            }
-        });
+        println!("count: {}", *count);
 
-        cx.set_state(&count, *count + 1);
+        cx.use_system_once(move |mut state: SetState| {
+            state.set(&count, *count + 1);
+        });
     }
 }
