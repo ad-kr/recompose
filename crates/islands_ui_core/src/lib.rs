@@ -1,12 +1,21 @@
 use bevy_app::{App, Plugin, PreUpdate};
-use bevy_ecs::{component::Component, query::Added, schedule::IntoSystemConfigs, system::Query};
+use bevy_ecs::{
+    component::Component,
+    query::Added,
+    schedule::IntoSystemConfigs,
+    system::{BoxedSystem, IntoSystem, Query, SystemState},
+    world::World,
+};
 use std::{any::Any, collections::VecDeque, ops::Deref, sync::Arc};
 
 pub struct IslandsUiPlugin;
 
 impl Plugin for IslandsUiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(PreUpdate, (initial_compose, recompose).chain());
+        app.add_systems(
+            PreUpdate,
+            (initial_compose, run_queued_systems, recompose).chain(),
+        );
     }
 }
 
@@ -24,6 +33,7 @@ pub struct Scope<'a> {
     states: Vec<DynState>,
     child_index: usize,
     children: Vec<Scope<'a>>,
+    queued_systems: Vec<BoxedSystem<(), ()>>,
 }
 
 impl Default for Scope<'_> {
@@ -35,6 +45,7 @@ impl Default for Scope<'_> {
             states: Default::default(),
             child_index: Default::default(),
             children: Default::default(),
+            queued_systems: Default::default(),
         }
     }
 }
@@ -48,6 +59,7 @@ impl Scope<'_> {
             states: Vec::new(),
             child_index: 0,
             children: Vec::new(),
+            queued_systems: Vec::new(),
         }
     }
 
@@ -62,22 +74,21 @@ impl Scope<'_> {
 
         let value = Arc::new(initial_value);
 
-        let state = DynState {
+        let dyn_state = DynState {
             // TODO: These two should be random and unique
             id: StateId(self.state_index),
-            changed: StateChanged::Unchanged,
+            changed: StateChanged::Changed,
             scope_id: self.id,
             value: value.clone(),
         };
 
-        self.states.push(state);
+        // Safety: We just created the state, so we know it's the correct type.
+        let state = dyn_state.to_state().unwrap();
+
+        self.states.push(dyn_state);
         self.state_index += 1;
 
-        State {
-            id: StateId(self.states.len() - 1),
-            scope_id: self.id,
-            value,
-        }
+        state
     }
 
     pub fn set_state<T: Send + Sync + 'static>(&mut self, state: &State<T>, value: T) {
@@ -96,6 +107,34 @@ impl Scope<'_> {
         state.value = Arc::new(value);
         state.changed = StateChanged::Queued;
     }
+
+    // TODO: I don't think i can mix different State<T> and State<U> in the same array??? Check it
+    pub fn use_effect<'a>(
+        &'a mut self,
+        effect: impl Fn(),
+        dependecies: impl IntoIterator<Item = impl GetStateChanged + 'a>,
+    ) {
+        let any_changed = dependecies
+            .into_iter()
+            .any(|dep| matches!(dep.get_state_changed(), StateChanged::Changed));
+
+        if !any_changed {
+            return;
+        }
+
+        effect();
+    }
+
+    pub fn use_mount(&mut self, callback: impl Fn()) {
+        let once = self.use_state(());
+        self.use_effect(callback, [once]);
+    }
+
+    // TODO: Add description about that it is not cached
+    pub fn use_system<M>(&mut self, system: impl IntoSystem<(), (), M>) {
+        let sys: BoxedSystem<(), ()> = Box::from(IntoSystem::into_system(system));
+        self.queued_systems.push(sys);
+    }
 }
 
 // ===
@@ -105,7 +144,8 @@ impl Scope<'_> {
 #[derive(Default, Clone, Copy, PartialEq, Eq, Hash, Debug)]
 struct StateId(usize);
 
-enum StateChanged {
+#[derive(Clone, Copy)]
+pub enum StateChanged {
     Unchanged,
     Queued,
     Changed,
@@ -122,23 +162,41 @@ impl DynState {
     fn to_state<T: Any + Send + Sync>(&self) -> Option<State<T>> {
         self.value.clone().downcast::<T>().ok().map(|value| State {
             id: self.id,
+            changed: self.changed,
             scope_id: self.scope_id,
             value,
         })
     }
 }
 
+#[derive(Clone)]
 pub struct State<T> {
     id: StateId,
+    changed: StateChanged,
     scope_id: ScopeId,
     value: Arc<T>,
 }
 
 impl<T> Deref for State<T> {
-    type Target = Arc<T>;
+    type Target = T;
 
     fn deref(&self) -> &Self::Target {
         &self.value
+    }
+}
+
+pub trait GetStateChanged {
+    fn get_state_changed(&self) -> StateChanged;
+}
+
+impl<T> GetStateChanged for &State<T> {
+    fn get_state_changed(&self) -> StateChanged {
+        self.changed
+    }
+}
+impl<T> GetStateChanged for State<T> {
+    fn get_state_changed(&self) -> StateChanged {
+        self.changed
     }
 }
 
@@ -242,6 +300,33 @@ fn initial_compose(mut roots: Query<&mut Root, Added<Root>>) {
         root.compose.recompose_scope(&mut scope);
 
         root.scope = Some(scope);
+    }
+}
+
+// TODO: Could this be joined with recompose?
+fn run_queued_systems(world: &mut World) {
+    let mut roots_system_state = SystemState::<Query<&mut Root>>::new(world);
+    let mut roots = roots_system_state.get_mut(world);
+
+    let mut queued_systems = vec![];
+
+    for mut root in roots.iter_mut() {
+        let Some(scope) = &mut root.scope else {
+            continue;
+        };
+
+        let mut scopes = VecDeque::from([scope]);
+
+        while let Some(scope) = scopes.pop_front() {
+            queued_systems.append(&mut scope.queued_systems);
+            scopes.extend(scope.children.iter_mut());
+        }
+    }
+
+    for mut system in queued_systems {
+        system.initialize(world);
+        system.run((), world);
+        system.apply_deferred(world);
     }
 }
 

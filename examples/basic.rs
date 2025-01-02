@@ -37,6 +37,8 @@ fn spawn_camera(
     let material = materials.add(StandardMaterial::default());
 
     commands.spawn(Root::new(First));
+
+    commands.spawn(Name::new("Sup dawg"));
 }
 
 #[derive(Clone)]
@@ -60,8 +62,13 @@ impl Compose for Second {
     fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
         let count = cx.use_state(0);
 
-        println!("second count: {}", *count);
+        cx.use_system(|q: Query<&Name>| {
+            println!("Querying names, len: {}", q.iter().len());
+            for name in q.iter() {
+                println!("Name: {:?}", name);
+            }
+        });
 
-        cx.set_state(&count, **count + 1);
+        cx.set_state(&count, *count + 1);
     }
 }
