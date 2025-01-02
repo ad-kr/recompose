@@ -18,9 +18,6 @@ impl Plugin for IslandsUiPlugin {
 struct ScopeId(usize);
 
 pub struct Scope<'a> {
-    // TODO: Rather than having a boolean, we could have each state have a boolean. In that way we can implement
-    // use_effect for changed states
-    should_recompose: bool,
     id: ScopeId,
     composer: Arc<dyn AnyCompose + 'a>,
     state_index: usize,
@@ -32,7 +29,6 @@ pub struct Scope<'a> {
 impl Default for Scope<'_> {
     fn default() -> Self {
         Self {
-            should_recompose: Default::default(),
             id: Default::default(),
             composer: Arc::new(()),
             state_index: Default::default(),
@@ -46,7 +42,6 @@ impl Default for Scope<'_> {
 impl Scope<'_> {
     fn new(id: ScopeId, composer: Arc<dyn AnyCompose>) -> Self {
         Self {
-            should_recompose: false,
             id,
             composer,
             state_index: 0,
@@ -70,6 +65,7 @@ impl Scope<'_> {
         let state = DynState {
             // TODO: These two should be random and unique
             id: StateId(self.state_index),
+            changed: StateChanged::Unchanged,
             scope_id: self.id,
             value: value.clone(),
         };
@@ -98,8 +94,7 @@ impl Scope<'_> {
         }
 
         state.value = Arc::new(value);
-
-        self.should_recompose = true;
+        state.changed = StateChanged::Queued;
     }
 }
 
@@ -110,8 +105,15 @@ impl Scope<'_> {
 #[derive(Default, Clone, Copy, PartialEq, Eq, Hash, Debug)]
 struct StateId(usize);
 
+enum StateChanged {
+    Unchanged,
+    Queued,
+    Changed,
+}
+
 struct DynState {
     id: StateId,
+    changed: StateChanged,
     scope_id: ScopeId,
     value: Arc<dyn Any + Send + Sync>,
 }
@@ -176,11 +178,22 @@ trait AnyCompose: Send + Sync {
 
 impl<C: Compose> AnyCompose for C {
     fn recompose_scope(&self, scope: &mut Scope) {
-        scope.should_recompose = false;
         scope.state_index = 0;
         scope.child_index = 0;
 
+        for state in scope.states.iter_mut() {
+            if matches!(state.changed, StateChanged::Queued) {
+                state.changed = StateChanged::Changed;
+            }
+        }
+
         let child = self.compose(scope);
+
+        for state in scope.states.iter_mut() {
+            if matches!(state.changed, StateChanged::Changed) {
+                state.changed = StateChanged::Unchanged;
+            }
+        }
 
         if self.ignore_children() {
             return;
@@ -241,7 +254,11 @@ fn recompose(mut roots: Query<&mut Root>) {
         let mut scopes = VecDeque::from([scope]);
 
         while let Some(scope) = scopes.pop_front() {
-            if scope.should_recompose {
+            if scope
+                .states
+                .iter()
+                .any(|state| matches!(state.changed, StateChanged::Queued))
+            {
                 let composer = scope.composer.clone();
 
                 composer.recompose_scope(scope);
