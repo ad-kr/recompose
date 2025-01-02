@@ -22,7 +22,15 @@ impl Plugin for IslandsUiPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<StateSetter>().add_systems(
             PreUpdate,
-            (initial_compose, run_queued_systems, set_states, recompose).chain(),
+            (
+                initial_compose,
+                run_queued_systems,
+                drop_decomposed_scopes,
+                set_states,
+                recompose,
+                decompose,
+            )
+                .chain(),
         );
     }
 }
@@ -42,6 +50,7 @@ fn unique_id() -> usize {
 // ===
 
 pub struct Scope<'a> {
+    will_decompose: bool,
     composer: Arc<dyn AnyCompose + 'a>,
     state_index: usize,
     states: Vec<DynState>,
@@ -53,6 +62,7 @@ pub struct Scope<'a> {
 impl Default for Scope<'_> {
     fn default() -> Self {
         Self {
+            will_decompose: false,
             composer: Arc::new(()),
             state_index: Default::default(),
             states: Default::default(),
@@ -66,7 +76,8 @@ impl Default for Scope<'_> {
 impl Scope<'_> {
     fn new(composer: Arc<dyn AnyCompose>) -> Self {
         Self {
-            composer,
+            will_decompose: false,
+            composer: composer.clone(),
             state_index: 0,
             states: Vec::new(),
             child_index: 0,
@@ -78,10 +89,7 @@ impl Scope<'_> {
     pub fn use_state<T: Any + Send + Sync>(&mut self, initial_value: T) -> State<T> {
         if let Some(existing_state) = self.states.get(self.state_index) {
             self.state_index += 1;
-            let message = "Found an existing state, but it doesn't match the specified type. Make sure you're not using hooks conditionally.";
-            return existing_state
-                .to_state::<T>()
-                .unwrap_or_else(|| panic!("{}", message));
+            return existing_state.to_state::<T>();
         }
 
         let value = Arc::new(initial_value);
@@ -92,8 +100,7 @@ impl Scope<'_> {
             value: value.clone(),
         };
 
-        // Safety: We just created the state, so we know it's the correct type.
-        let state = dyn_state.to_state().unwrap();
+        let state = dyn_state.to_state();
 
         self.states.push(dyn_state);
         self.state_index += 1;
@@ -102,12 +109,10 @@ impl Scope<'_> {
     }
 
     pub fn set_state<T: Send + Sync + 'static>(&mut self, state: &State<T>, value: T) {
-        let state_id = state.id;
-
         let state = self
             .states
             .iter_mut()
-            .find(|s| s.id == state_id)
+            .find(|s| s.id == state.id)
             .unwrap_or_else(|| panic!("State not found."));
 
         if !state.value.is::<T>() {
@@ -116,6 +121,15 @@ impl Scope<'_> {
 
         state.value = Arc::new(value);
         state.changed = StateChanged::Queued;
+    }
+
+    pub fn get_state_by_index<T: Any + Send + Sync>(&self, index: usize) -> State<T> {
+        let dyn_state = self
+            .states
+            .get(index)
+            .unwrap_or_else(|| panic!("State not found."));
+
+        dyn_state.to_state()
     }
 
     // TODO: I don't think i can mix different State<T> and State<U> in the same array??? Check it
@@ -196,12 +210,16 @@ struct DynState {
 }
 
 impl DynState {
-    fn to_state<T: Any + Send + Sync>(&self) -> Option<State<T>> {
-        self.value.clone().downcast::<T>().ok().map(|value| State {
-            id: self.id,
-            changed: self.changed,
-            value,
-        })
+    fn to_state<T: Any + Send + Sync>(&self) -> State<T> {
+        self.value
+            .clone()
+            .downcast::<T>()
+            .map(|value| State {
+                id: self.id,
+                changed: self.changed,
+                value,
+            })
+            .unwrap_or_else(|_| panic!("State value type mismatch."))
     }
 }
 
@@ -242,6 +260,10 @@ impl<T> GetStateChanged for State<T> {
 pub trait Compose: Send + Sync {
     fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a;
 
+    fn decompose(&self, cx: &mut Scope) {
+        let _ = cx;
+    }
+
     /// Whether the compose should stop rendering further nodes or not.
     fn ignore_children(&self) -> bool {
         false
@@ -256,10 +278,34 @@ impl Compose for () {
     }
 }
 
-// TODO: Implement for Option. Where the value is None, we run the clear function so that the scope gets deleted from
-// the parent scope. Or maybe not, we might want to keep the scope around, to keep the same amount of children?
+impl<C: Compose + Clone + 'static> Compose for Option<C> {
+    fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
+        let Some(inner) = self else {
+            cx.will_decompose = true;
+            return;
+        };
 
-// TODO: Add impl for fn(&mut Scope) -> impl Compose if possible
+        if let Some(existing_scope) = cx.children.get_mut(cx.child_index) {
+            existing_scope.composer = Arc::new(inner.clone());
+            existing_scope
+                .composer
+                .clone()
+                .recompose_scope(existing_scope);
+            return;
+        }
+
+        let child_compose = Arc::new(inner.clone());
+        let mut scope = Scope::new(child_compose);
+
+        inner.recompose_scope(&mut scope);
+
+        cx.children.push(scope);
+    }
+
+    fn ignore_children(&self) -> bool {
+        true
+    }
+}
 
 // ===
 // AnyCompose
@@ -267,6 +313,8 @@ impl Compose for () {
 
 trait AnyCompose: Send + Sync {
     fn recompose_scope(&self, scope: &mut Scope);
+
+    fn decompose_scope(&self, scope: &mut Scope);
 }
 
 impl<C: Compose> AnyCompose for C {
@@ -304,11 +352,10 @@ impl<C: Compose> AnyCompose for C {
         //
         // The mechanic for determining whether a child was removed or not (for cleanup) could be to go through the rest
         // of children in a vec that wasn't iterated over and run the cleanup function.
-        if let Some(existing_child_scope) = scope.children.get_mut(scope.child_index) {
-            let child_compose = existing_child_scope.composer.clone();
-            child_compose.recompose_scope(existing_child_scope);
 
-            scope.child_index += 1;
+        if let Some(child_scope) = scope.children.get_mut(scope.child_index) {
+            child_scope.composer = Arc::new(child);
+            child_scope.composer.clone().recompose_scope(child_scope);
             return;
         };
 
@@ -318,6 +365,10 @@ impl<C: Compose> AnyCompose for C {
         child_compose.recompose_scope(&mut child_scope);
 
         scope.children.push(child_scope);
+    }
+
+    fn decompose_scope(&self, scope: &mut Scope) {
+        self.decompose(scope);
     }
 }
 
@@ -359,6 +410,21 @@ fn run_queued_systems(world: &mut World) {
         system.initialize(world);
         system.run((), world);
         system.apply_deferred(world);
+    }
+}
+
+fn drop_decomposed_scopes(mut roots: Query<&mut Root>) {
+    for mut root in roots.iter_mut() {
+        let Some(scope) = &mut root.scope else {
+            continue;
+        };
+
+        let mut scopes = VecDeque::from([scope]);
+
+        while let Some(scope) = scopes.pop_front() {
+            scope.children.retain(|child| !child.will_decompose);
+            scopes.extend(scope.children.iter_mut());
+        }
     }
 }
 
@@ -409,6 +475,31 @@ fn recompose(mut roots: Query<&mut Root>) {
     }
 }
 
+fn decompose(mut roots: Query<&mut Root>) {
+    for mut root in roots.iter_mut() {
+        let Some(scope) = &mut root.scope else {
+            continue;
+        };
+
+        let mut scopes = VecDeque::from([scope]);
+
+        while let Some(scope) = scopes.pop_front() {
+            if scope.will_decompose {
+                let composer = scope.composer.clone();
+                composer.decompose_scope(scope);
+
+                for child in scope.children.iter_mut() {
+                    child.will_decompose = true;
+                }
+            }
+
+            scopes.extend(scope.children.iter_mut());
+        }
+    }
+}
+
+// TODO: Mark main scope as will_decompose when the root is removed
+
 // ===
 // Root
 // ===
@@ -420,7 +511,7 @@ pub struct Root {
 }
 
 impl Root {
-    pub fn new<C: Compose + Clone + 'static>(composer: C) -> Self {
+    pub fn new<C: Compose + 'static>(composer: C) -> Self {
         Self {
             compose: Arc::new(composer),
             scope: None,

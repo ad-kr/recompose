@@ -1,4 +1,5 @@
 use bevy::{
+    ecs::entity,
     prelude::*,
     render::{
         settings::{Backends, RenderCreation, WgpuSettings},
@@ -36,36 +37,59 @@ fn spawn_camera(
 
     let material = materials.add(StandardMaterial::default());
 
-    commands.spawn(Root::new(First));
+    commands.spawn(Root::new(Counter));
 
     commands.spawn(Name::new("Sup dawg"));
 }
 
-#[derive(Clone)]
-pub struct First;
+pub struct Counter;
 
-impl Compose for First {
-    fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
-        // let count = cx.use_state(0);
-
-        // println!("first count: {}", *count);
-
-        // cx.set_state(&count, **count + 1);
-
-        Second
-    }
-}
-#[derive(Clone)]
-pub struct Second;
-
-impl Compose for Second {
+impl Compose for Counter {
     fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
         let count = cx.use_state(0);
 
         println!("count: {}", *count);
 
-        cx.use_system_once(move |mut state: SetState| {
-            state.set(&count, *count + 1);
+        cx.set_state(&count, *count + 1);
+
+        if *count >= 100 && *count < 200 {
+            Some(Rect)
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct Rect;
+
+impl Compose for Rect {
+    fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
+        let entity = cx.use_state(None);
+
+        cx.use_system_once(move |mut state: SetState, mut commands: Commands| {
+            let mut e = commands.spawn_empty();
+
+            state.set(&entity, Some(e.id()));
+
+            e.try_insert((
+                Node {
+                    width: Val::Px(128.0),
+                    height: Val::Px(128.0),
+                    ..default()
+                },
+                BackgroundColor(Srgba::RED.into()),
+            ));
         });
+    }
+
+    fn decompose(&self, cx: &mut Scope) {
+        let entity = cx.get_state_by_index::<Option<Entity>>(0);
+
+        if let Some(entity) = *entity {
+            cx.use_system_once(move |mut commands: Commands| {
+                commands.entity(entity).despawn_recursive();
+            });
+        }
     }
 }
