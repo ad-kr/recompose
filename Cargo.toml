@@ -3,5 +3,16 @@ name = "islands_ui"
 version = "0.1.0"
 edition = "2021"
 
+[workspace]
+members = ["crates/*"]
+
+[dev-dependencies]
+bevy = "0.15"
+
 [dependencies]
-bevy = { version = "0.14.2", default-features = false }
+bevy-inspector-egui = "0.28.0"
+islands_ui_core = { path = "crates/islands_ui_core" }
+
+[[example]]
+name = "basic"
+path = "examples/basic.rs"

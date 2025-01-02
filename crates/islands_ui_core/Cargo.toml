@@ -1,0 +1,11 @@
+[package]
+name = "islands_ui_core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy_app = "0.15.0"
+bevy_ui = "0.15.0"
+bevy_ecs = "0.15.0"
+bevy_hierarchy = "0.15.0"
+bevy_color = "0.15.0"
