@@ -1,5 +1,4 @@
 use bevy::{
-    ecs::entity,
     prelude::*,
     render::{
         settings::{Backends, RenderCreation, WgpuSettings},
@@ -7,7 +6,7 @@ use bevy::{
     },
 };
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use islands_ui_core::{Compose, IslandsUiPlugin, Root, Scope, SetState};
+use islands_ui_core::{Compose, DynCompose, IslandsUiPlugin, Root, Scope, SetState};
 
 fn main() {
     App::new()
@@ -48,24 +47,30 @@ impl Compose for Counter {
     fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
         let count = cx.use_state(0);
 
-        println!("count: {}", *count);
+        // println!("count: {}", *count);
 
         cx.set_state(&count, *count + 1);
 
-        if *count >= 100 && *count < 200 {
-            Some(Rect)
+        if *count >= 200 && *count < 400 {
+            // DynCompose::new(RedRect { count: *count })
+            Some(GreenRect { count: *count })
         } else {
+            // DynCompose::new(GreenRect { count: *count })
             None
         }
     }
 }
 
 #[derive(Clone)]
-pub struct Rect;
+pub struct RedRect {
+    count: i32,
+}
 
-impl Compose for Rect {
+impl Compose for RedRect {
     fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
         let entity = cx.use_state(None);
+
+        println!("red count: {}", self.count);
 
         cx.use_system_once(move |mut state: SetState, mut commands: Commands| {
             let mut e = commands.spawn_empty();
@@ -73,9 +78,11 @@ impl Compose for Rect {
             state.set(&entity, Some(e.id()));
 
             e.try_insert((
+                Name::new("RedRect"),
                 Node {
                     width: Val::Px(128.0),
                     height: Val::Px(128.0),
+                    margin: UiRect::all(Val::Px(8.0)),
                     ..default()
                 },
                 BackgroundColor(Srgba::RED.into()),
@@ -85,6 +92,50 @@ impl Compose for Rect {
 
     fn decompose(&self, cx: &mut Scope) {
         let entity = cx.get_state_by_index::<Option<Entity>>(0);
+
+        dbg!("red decompose");
+
+        if let Some(entity) = *entity {
+            cx.use_system_once(move |mut commands: Commands| {
+                commands.entity(entity).despawn_recursive();
+            });
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct GreenRect {
+    count: i32,
+}
+
+impl Compose for GreenRect {
+    fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
+        let entity = cx.use_state(None);
+
+        println!("green count: {}", self.count);
+
+        cx.use_system_once(move |mut state: SetState, mut commands: Commands| {
+            let mut e = commands.spawn_empty();
+
+            state.set(&entity, Some(e.id()));
+
+            e.try_insert((
+                Name::new("GreenRect"),
+                Node {
+                    width: Val::Px(128.0),
+                    height: Val::Px(128.0),
+                    margin: UiRect::all(Val::Px(8.0)),
+                    ..default()
+                },
+                BackgroundColor(Srgba::GREEN.into()),
+            ));
+        });
+    }
+
+    fn decompose(&self, cx: &mut Scope) {
+        let entity = cx.get_state_by_index::<Option<Entity>>(0);
+
+        dbg!("green decompose");
 
         if let Some(entity) = *entity {
             cx.use_system_once(move |mut commands: Commands| {

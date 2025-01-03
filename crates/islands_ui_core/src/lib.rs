@@ -7,7 +7,7 @@ use bevy_ecs::{
     world::World,
 };
 use std::{
-    any::Any,
+    any::{Any, TypeId},
     collections::{HashMap, VecDeque},
     ops::Deref,
     sync::{
@@ -279,14 +279,48 @@ impl Compose for () {
 }
 
 impl<C: Compose + Clone + 'static> Compose for Option<C> {
-    fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
-        let Some(inner) = self else {
-            cx.will_decompose = true;
-            return;
-        };
+    fn compose<'a>(&self, _: &mut Scope) -> impl Compose + 'a {
+        match self {
+            Some(inner) => DynCompose::new(inner.clone()),
+            None => DynCompose::new(()),
+        }
+    }
+}
 
+// ===
+// DynCompose
+// ===
+
+pub struct DynCompose {
+    type_id: TypeId,
+    compose: Arc<dyn AnyCompose>,
+}
+
+impl DynCompose {
+    pub fn new(compose: impl Compose + 'static) -> Self {
+        Self {
+            type_id: compose.type_id(),
+            compose: Arc::new(compose),
+        }
+    }
+}
+
+impl Compose for DynCompose {
+    fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
+        let type_id = cx.use_state(self.type_id);
         if let Some(existing_scope) = cx.children.get_mut(cx.child_index) {
-            existing_scope.composer = Arc::new(inner.clone());
+            if *type_id != self.type_id {
+                existing_scope.will_decompose = true;
+
+                // TODO: Can this be rewritten?
+                let mut scope = Scope::new(self.compose.clone());
+                self.compose.recompose_scope(&mut scope);
+                cx.children.push(scope);
+                cx.set_state(&type_id, self.type_id);
+                return;
+            }
+
+            existing_scope.composer = self.compose.clone();
             existing_scope
                 .composer
                 .clone()
@@ -294,12 +328,12 @@ impl<C: Compose + Clone + 'static> Compose for Option<C> {
             return;
         }
 
-        let child_compose = Arc::new(inner.clone());
-        let mut scope = Scope::new(child_compose);
+        let mut scope = Scope::new(self.compose.clone());
 
-        inner.recompose_scope(&mut scope);
+        self.compose.recompose_scope(&mut scope);
 
         cx.children.push(scope);
+        cx.set_state(&type_id, self.type_id);
     }
 
     fn ignore_children(&self) -> bool {
@@ -464,10 +498,12 @@ fn recompose(mut roots: Query<&mut Root>) {
                 .states
                 .iter()
                 .any(|state| matches!(state.changed, StateChanged::Queued))
+                && !scope.will_decompose
             {
                 let composer = scope.composer.clone();
 
                 composer.recompose_scope(scope);
+                continue;
             }
 
             scopes.extend(scope.children.iter_mut());
