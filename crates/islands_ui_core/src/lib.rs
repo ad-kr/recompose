@@ -9,6 +9,7 @@ use bevy_ecs::{
 use std::{
     any::{Any, TypeId},
     collections::{HashMap, VecDeque},
+    hash::Hash,
     ops::Deref,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -49,12 +50,15 @@ fn unique_id() -> usize {
 // Scope
 // ===
 
+#[derive(Default, Clone, Copy, PartialEq, Eq, Hash, Debug)]
+struct ScopeId(usize);
+
 pub struct Scope<'a> {
+    id: ScopeId,
     will_decompose: bool,
     composer: Arc<dyn AnyCompose + 'a>,
     state_index: usize,
     states: Vec<DynState>,
-    child_index: usize,
     children: Vec<Scope<'a>>,
     queued_systems: Vec<BoxedSystem<(), ()>>,
 }
@@ -62,11 +66,11 @@ pub struct Scope<'a> {
 impl Default for Scope<'_> {
     fn default() -> Self {
         Self {
+            id: ScopeId(unique_id()),
             will_decompose: false,
             composer: Arc::new(()),
             state_index: Default::default(),
             states: Default::default(),
-            child_index: Default::default(),
             children: Default::default(),
             queued_systems: Default::default(),
         }
@@ -76,11 +80,11 @@ impl Default for Scope<'_> {
 impl Scope<'_> {
     fn new(composer: Arc<dyn AnyCompose>) -> Self {
         Self {
+            id: ScopeId(unique_id()),
             will_decompose: false,
             composer: composer.clone(),
             state_index: 0,
             states: Vec::new(),
-            child_index: 0,
             children: Vec::new(),
             queued_systems: Vec::new(),
         }
@@ -308,7 +312,7 @@ impl DynCompose {
 impl Compose for DynCompose {
     fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
         let type_id = cx.use_state(self.type_id);
-        if let Some(existing_scope) = cx.children.get_mut(cx.child_index) {
+        if let Some(existing_scope) = cx.children.first_mut() {
             if *type_id != self.type_id {
                 existing_scope.will_decompose = true;
 
@@ -341,6 +345,88 @@ impl Compose for DynCompose {
     }
 }
 
+impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
+    fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
+        let scope_ids = cx.use_state(HashMap::<usize, ScopeId>::new());
+
+        // TODO: Add check for when key values are duplicated
+        // TODO: The way this is implemented now, is that it will not recompose in the same order as the keys are in the vec, right?
+        for key_compose in self.iter() {
+            let key = key_compose.key();
+            let scope_id = scope_ids.get(&key);
+
+            if let Some(scope_id) = scope_id {
+                let scope = cx
+                    .children
+                    .iter_mut()
+                    .find(|s| s.id == *scope_id)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "Scope with id {:?} was expected to be found, but was not.",
+                            scope_id
+                        )
+                    });
+                scope.composer = Arc::new(key_compose.clone());
+                scope.composer.clone().recompose_scope(scope);
+                continue;
+            }
+
+            let compose = Arc::new(key_compose.clone());
+            let mut scope = Scope::new(compose);
+            let scope_id = scope.id;
+            scope.composer.clone().recompose_scope(&mut scope);
+
+            cx.children.push(scope);
+
+            // TODO: Since scope ids inner value is an Arc, the state we reference here should be updated, but I'm not sure.
+            let mut new_scope_ids = (*scope_ids).clone();
+            new_scope_ids.insert(key, scope_id);
+
+            cx.set_state(&scope_ids, new_scope_ids);
+        }
+
+        let keys = self.iter().map(|k| k.key()).collect::<Vec<_>>();
+
+        for (key, scope_id) in scope_ids.iter() {
+            if keys.contains(key) {
+                continue;
+            }
+
+            let scope = cx
+                .children
+                .iter_mut()
+                .find(|s| s.id == *scope_id)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Scope with id {:?} was expected to be found, but was not.",
+                        scope_id
+                    )
+                });
+
+            scope.will_decompose = true;
+
+            let mut new_scope_ids = (*scope_ids).clone();
+            new_scope_ids.remove(key);
+
+            cx.set_state(&scope_ids, new_scope_ids);
+        }
+
+        // If scope exists in hashmap, but does not have a key in the vec, mark it for decompose and remove from hashmap
+    }
+
+    fn ignore_children(&self) -> bool {
+        true
+    }
+}
+
+// ===
+// Key
+// ===
+
+pub trait Key: Send + Sync {
+    fn key(&self) -> usize;
+}
+
 // ===
 // AnyCompose
 // ===
@@ -354,7 +440,6 @@ trait AnyCompose: Send + Sync {
 impl<C: Compose> AnyCompose for C {
     fn recompose_scope(&self, scope: &mut Scope) {
         scope.state_index = 0;
-        scope.child_index = 0;
 
         for state in scope.states.iter_mut() {
             if matches!(state.changed, StateChanged::Queued) {
@@ -387,7 +472,7 @@ impl<C: Compose> AnyCompose for C {
         // The mechanic for determining whether a child was removed or not (for cleanup) could be to go through the rest
         // of children in a vec that wasn't iterated over and run the cleanup function.
 
-        if let Some(child_scope) = scope.children.get_mut(scope.child_index) {
+        if let Some(child_scope) = scope.children.first_mut() {
             child_scope.composer = Arc::new(child);
             child_scope.composer.clone().recompose_scope(child_scope);
             return;
