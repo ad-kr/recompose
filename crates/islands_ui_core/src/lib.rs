@@ -1,6 +1,7 @@
 use bevy_app::{App, Plugin, PreUpdate};
 use bevy_ecs::{
     component::Component,
+    entity::Entity,
     query::Added,
     schedule::IntoSystemConfigs,
     system::{BoxedSystem, IntoSystem, Query, ResMut, Resource, SystemParam, SystemState},
@@ -55,6 +56,8 @@ struct ScopeId(usize);
 
 pub struct Scope<'a> {
     id: ScopeId,
+    entity: Option<Entity>,
+    parent: Entity,
     will_decompose: bool,
     composer: Arc<dyn AnyCompose + 'a>,
     state_index: usize,
@@ -67,6 +70,8 @@ impl Default for Scope<'_> {
     fn default() -> Self {
         Self {
             id: ScopeId(unique_id()),
+            entity: None,
+            parent: Entity::PLACEHOLDER,
             will_decompose: false,
             composer: Arc::new(()),
             state_index: Default::default(),
@@ -78,9 +83,25 @@ impl Default for Scope<'_> {
 }
 
 impl Scope<'_> {
-    fn new(composer: Arc<dyn AnyCompose>) -> Self {
+    fn new(composer: Arc<dyn AnyCompose>, parent: Entity) -> Self {
         Self {
             id: ScopeId(unique_id()),
+            entity: None,
+            parent,
+            will_decompose: false,
+            composer: composer.clone(),
+            state_index: 0,
+            states: Vec::new(),
+            children: Vec::new(),
+            queued_systems: Vec::new(),
+        }
+    }
+
+    fn with_entity(entity: Entity, composer: Arc<dyn AnyCompose>, parent: Entity) -> Self {
+        Self {
+            id: ScopeId(unique_id()),
+            entity: Some(entity),
+            parent,
             will_decompose: false,
             composer: composer.clone(),
             state_index: 0,
@@ -170,6 +191,14 @@ impl Scope<'_> {
         if matches!(once.changed, StateChanged::Changed) {
             self.use_system(system);
         }
+    }
+
+    pub fn get_parent(&self) -> Entity {
+        self.parent
+    }
+
+    pub fn set_entity(&mut self, entity: Entity) {
+        self.entity = Some(entity);
     }
 }
 
@@ -317,7 +346,7 @@ impl Compose for DynCompose {
                 existing_scope.will_decompose = true;
 
                 // TODO: Can this be rewritten?
-                let mut scope = Scope::new(self.compose.clone());
+                let mut scope = Scope::new(self.compose.clone(), cx.entity.unwrap_or(cx.parent));
                 self.compose.recompose_scope(&mut scope);
                 cx.children.push(scope);
                 cx.set_state(&type_id, self.type_id);
@@ -332,7 +361,7 @@ impl Compose for DynCompose {
             return;
         }
 
-        let mut scope = Scope::new(self.compose.clone());
+        let mut scope = Scope::new(self.compose.clone(), cx.entity.unwrap_or(cx.parent));
 
         self.compose.recompose_scope(&mut scope);
 
@@ -350,7 +379,6 @@ impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
         let scope_ids = cx.use_state(HashMap::<usize, ScopeId>::new());
 
         // TODO: Add check for when key values are duplicated
-        // TODO: The way this is implemented now, is that it will not recompose in the same order as the keys are in the vec, right?
         for key_compose in self.iter() {
             let key = key_compose.key();
             let scope_id = scope_ids.get(&key);
@@ -372,7 +400,7 @@ impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
             }
 
             let compose = Arc::new(key_compose.clone());
-            let mut scope = Scope::new(compose);
+            let mut scope = Scope::new(compose, cx.entity.unwrap_or(cx.parent));
             let scope_id = scope.id;
             scope.composer.clone().recompose_scope(&mut scope);
 
@@ -386,6 +414,16 @@ impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
         }
 
         let keys = self.iter().map(|k| k.key()).collect::<Vec<_>>();
+
+        // TODO: Is there a better way to order the scopes? Or just ensure that they are always in the right order?
+        cx.children.sort_by_key(|scope| {
+            let scope_id = scope.id;
+            let Some((key, _)) = scope_ids.iter().find(|(_, &id)| id == scope_id) else {
+                return usize::MAX;
+            };
+
+            keys.iter().position(|k| k == key).unwrap_or(usize::MAX)
+        });
 
         for (key, scope_id) in scope_ids.iter() {
             if keys.contains(key) {
@@ -479,7 +517,8 @@ impl<C: Compose> AnyCompose for C {
         };
 
         let child_compose = Arc::new(child);
-        let mut child_scope = Scope::new(child_compose.clone());
+        let mut child_scope =
+            Scope::new(child_compose.clone(), scope.entity.unwrap_or(scope.parent));
 
         child_compose.recompose_scope(&mut child_scope);
 
@@ -495,9 +534,9 @@ impl<C: Compose> AnyCompose for C {
 // Systems
 // ===
 
-fn initial_compose(mut roots: Query<&mut Root, Added<Root>>) {
-    for mut root in roots.iter_mut() {
-        let mut scope = Scope::new(root.compose.clone());
+fn initial_compose(mut roots: Query<(Entity, &mut Root), Added<Root>>) {
+    for (entity, mut root) in roots.iter_mut() {
+        let mut scope = Scope::with_entity(entity, root.compose.clone(), entity);
 
         root.compose.recompose_scope(&mut scope);
 
