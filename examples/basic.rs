@@ -6,7 +6,9 @@ use bevy::{
     },
 };
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use islands_ui_core::{Compose, IslandsUiPlugin, Key, Root, Scope, SetState};
+use islands_ui_core::{
+    scope::Scope, spawn::Spawn, state::SetState, Compose, IslandsUiPlugin, Root,
+};
 
 fn main() {
     App::new()
@@ -36,7 +38,14 @@ fn spawn_camera(
 
     let material = materials.add(StandardMaterial::default());
 
-    commands.spawn(Root::new(Counter));
+    commands.spawn((
+        Root::new(Counter),
+        Node {
+            display: Display::Flex,
+            column_gap: Val::Px(8.0),
+            ..default()
+        },
+    ));
 }
 
 pub struct Counter;
@@ -45,92 +54,49 @@ impl Compose for Counter {
     fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
         let count = cx.use_state(0);
 
-        cx.set_state(&count, *count + 1);
+        // cx.set_state(&count, *count + 1);
+        let count_string = count.to_string();
+        let count_clone = count.clone();
 
-        vec![
-            Keyed {
-                key: 0,
-                count: *count,
-                count_threshold: 100,
-                color: Srgba::RED.into(),
+        Spawn::new((
+            Node {
+                display: Display::Flex,
+                column_gap: Val::Px(8.0),
+                padding: UiRect::all(Val::Px(8.0)),
+                ..default()
             },
-            Keyed {
-                key: 1,
-                count: *count,
-                count_threshold: 400,
-                color: Srgba::GREEN.into(),
-            },
-            Keyed {
-                key: 2,
-                count: *count,
-                count_threshold: 200,
-                color: Srgba::BLUE.into(),
-            },
-        ]
-    }
-}
-
-#[derive(Clone)]
-pub struct Keyed {
-    key: usize,
-    count: i32,
-    count_threshold: i32,
-    color: Color,
-}
-
-impl Compose for Keyed {
-    fn compose<'a>(&self, _: &mut Scope) -> impl Compose + 'a {
-        if self.count > self.count_threshold {
-            Some(Rect { color: self.color })
-        } else {
-            None
-        }
-    }
-}
-
-impl Key for Keyed {
-    fn key(&self) -> usize {
-        self.key
-    }
-}
-
-#[derive(Clone)]
-pub struct Rect {
-    color: Color,
-}
-
-impl Compose for Rect {
-    fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
-        let entity = cx.use_state(None);
-        let color = self.color;
-
-        cx.use_system_once(move |mut state: SetState, mut commands: Commands| {
-            let mut e = commands.spawn_empty();
-
-            state.set(&entity, Some(e.id()));
-
-            e.try_insert((
-                Name::new("Rect"),
+            BackgroundColor(Srgba::WHITE.into()),
+        ))
+        .children(vec![
+            Spawn::new((
                 Node {
-                    width: Val::Px(64.0),
-                    height: Val::Px(64.0),
-                    margin: UiRect::all(Val::Px(8.0)),
+                    width: Val::Px(32.0),
+                    height: Val::Px(32.0),
                     ..default()
                 },
-                BackgroundColor(color),
-            ));
-        });
-    }
-
-    fn decompose(&self, cx: &mut Scope) {
-        let entity = cx.get_state_by_index::<Option<Entity>>(0);
-
-        dbg!("red decompose");
-
-        if let Some(entity) = *entity {
-            cx.use_system_once(move |mut commands: Commands| {
-                commands.entity(entity).despawn_recursive();
-            });
-        }
+                BackgroundColor(Srgba::RED.into()),
+            ))
+            .observe(move |_: Trigger<Pointer<Click>>, mut state: SetState| {
+                state.set_fn(&count, |c| c - 100);
+            })
+            .keyed(0),
+            Spawn::new((
+                Text::new(count_string),
+                BackgroundColor(Srgba::GREEN.into()),
+            ))
+            .keyed(1),
+            Spawn::new((
+                Node {
+                    width: Val::Px(32.0),
+                    height: Val::Px(32.0),
+                    ..default()
+                },
+                BackgroundColor(Srgba::BLUE.into()),
+            ))
+            .observe(move |_: Trigger<Pointer<Click>>, mut state: SetState| {
+                state.set_fn(&count_clone, |c| c + 100);
+            })
+            .keyed(2),
+        ])
     }
 }
