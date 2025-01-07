@@ -18,6 +18,7 @@ use std::{
     },
 };
 
+pub mod bundle_compose;
 pub mod dyn_compose;
 pub mod keyed;
 pub mod scope;

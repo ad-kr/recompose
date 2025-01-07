@@ -1,21 +1,22 @@
-use crate::{dyn_compose::DynCompose, keyed::Keyed, Compose, Root, Scope, SetState};
+use crate::{
+    bundle_compose::BundleCompose, dyn_compose::DynCompose, Compose, Root, Scope, SetState,
+};
 use bevy_ecs::{
     bundle::Bundle,
     entity::Entity,
-    event::Event,
-    system::{Commands, EntityCommands, IntoObserverSystem, Query},
+    system::{Commands, EntityCommands, Query},
 };
 use bevy_hierarchy::{BuildChildren, DespawnRecursiveExt};
 use std::{collections::HashMap, sync::Arc};
 
 #[derive(Clone)]
 pub struct Spawn<B: Bundle + Clone> {
-    bundle_generator: Arc<dyn (Fn() -> B) + Send + Sync>,
-    children: DynCompose,
+    pub(crate) bundle_generator: Arc<dyn (Fn() -> B) + Send + Sync>,
+    pub(crate) children: DynCompose,
     // Storing observers directly would be better, but it's a little tricky, so for now we store a function that adds
     // the observer given entity commands.
     #[allow(clippy::type_complexity)]
-    observer_adders: Vec<Arc<dyn Fn(&mut EntityCommands) + Send + Sync>>,
+    pub(crate) observer_adders: Vec<Arc<dyn Fn(&mut EntityCommands) + Send + Sync>>,
 }
 
 impl<B: Bundle + Clone> Spawn<B> {
@@ -27,35 +28,11 @@ impl<B: Bundle + Clone> Spawn<B> {
             observer_adders: vec![],
         }
     }
+}
 
-    /// Sets the children of the spawned entity.
-    pub fn children(mut self, children: impl Compose + 'static) -> Self {
-        self.children = DynCompose::new(children);
+impl<B: Bundle + Clone> BundleCompose for Spawn<B> {
+    fn to_compose(self) -> Spawn<impl Bundle + Clone> {
         self
-    }
-
-    /// Adds an observer to the spawned entity. The observer will be added to the entity after the bundle is inserted,
-    /// and is only added once.
-    pub fn observe<E: Event, B2: Bundle, M>(
-        mut self,
-        observer: impl IntoObserverSystem<E, B2, M> + Clone + Sync,
-    ) -> Self {
-        let f = Arc::new(move |entity: &mut EntityCommands| {
-            entity.observe(observer.clone());
-        });
-
-        self.observer_adders.push(f);
-        self
-    }
-
-    /// Wraps this Spawn in a Keyed compose.
-    pub fn keyed(self, key: usize) -> Keyed {
-        Keyed::new(key, self)
-    }
-
-    /// Converts this spawn into a dynamic compose.
-    pub fn as_dyn(self) -> DynCompose {
-        DynCompose::new(self)
     }
 }
 
