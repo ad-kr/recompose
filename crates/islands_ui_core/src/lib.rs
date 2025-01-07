@@ -375,7 +375,7 @@ fn decompose(mut roots: Query<&mut Root>) {
 pub struct Root {
     compose: Arc<dyn AnyCompose>,
     // TODO: Make this private again when taking Spawn back into the crate
-    pub scope: Option<Scope<'static>>,
+    scope: Option<Scope<'static>>,
 }
 
 impl Root {
