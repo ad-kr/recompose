@@ -1,11 +1,11 @@
 use bevy_app::{App, Plugin, PreUpdate};
 use bevy_ecs::{
-    component::Component,
+    component::{Component, ComponentHooks, ComponentId, StorageType},
     entity::Entity,
     query::Added,
     schedule::IntoSystemConfigs,
     system::{Query, SystemState},
-    world::World,
+    world::{DeferredWorld, World},
 };
 use dyn_compose::DynCompose;
 use scope::{Scope, ScopeId};
@@ -253,7 +253,6 @@ fn initial_compose(mut roots: Query<(Entity, &mut Root), Added<Root>>) {
     }
 }
 
-// TODO: Could this be joined with recompose?
 fn run_queued_systems(world: &mut World) {
     let mut roots_system_state = SystemState::<Query<&mut Root>>::new(world);
     let mut roots = roots_system_state.get_mut(world);
@@ -370,17 +369,36 @@ fn decompose(mut roots: Query<&mut Root>) {
     }
 }
 
-// TODO: Mark main scope as will_decompose when the root is removed
-
-// ===
-// Root
-// ===
-
-#[derive(Component)]
 pub struct Root {
     compose: Arc<dyn AnyCompose>,
-    // TODO: Make this private again when taking Spawn back into the crate
     scope: Option<Scope<'static>>,
+}
+
+impl Component for Root {
+    const STORAGE_TYPE: StorageType = StorageType::Table;
+
+    fn register_component_hooks(hooks: &mut ComponentHooks) {
+        fn decompose_root(mut world: DeferredWorld, entity: Entity, _: ComponentId) {
+            let Some(mut roots) = world.get_mut::<Root>(entity) else {
+                return;
+            };
+
+            let Some(ref mut scope) = roots.scope else {
+                return;
+            };
+
+            let mut scopes = VecDeque::from([scope]);
+
+            while let Some(scope) = scopes.pop_front() {
+                let composer = scope.composer.clone();
+                composer.decompose_scope(scope);
+                scopes.extend(scope.children.iter_mut());
+            }
+        }
+
+        hooks.on_replace(decompose_root);
+        hooks.on_remove(decompose_root);
+    }
 }
 
 impl Root {

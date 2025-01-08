@@ -97,7 +97,10 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
 
         if let Some(entity) = *entity {
             cx.use_system_once(move |mut commands: Commands| {
-                commands.entity(entity).despawn_recursive();
+                let Some(ec) = commands.get_entity(entity) else {
+                    return;
+                };
+                ec.try_despawn_recursive();
             });
         }
     }

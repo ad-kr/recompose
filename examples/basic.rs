@@ -23,6 +23,7 @@ fn main() {
         .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(IslandsUiPlugin)
         .add_systems(Startup, spawn_camera)
+        .add_systems(Update, despawn_roots)
         .run();
 }
 
@@ -37,6 +38,16 @@ fn spawn_camera(mut commands: Commands) {
             ..default()
         },
     ));
+}
+
+fn despawn_roots(mut commands: Commands, roots: Query<Entity, With<Root>>, time: Res<Time>) {
+    if time.elapsed_secs() < 5.0 {
+        return;
+    }
+
+    for entity in roots.iter() {
+        commands.entity(entity).despawn_recursive();
+    }
 }
 
 fn counter(cx: &mut Scope) -> impl Compose {
