@@ -88,6 +88,12 @@ impl<C: Compose + Clone + 'static> Compose for Option<C> {
     }
 }
 
+impl<C: Compose + 'static, F: (Fn(&mut Scope) -> C) + Send + Sync> Compose for F {
+    fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
+        self(cx)
+    }
+}
+
 impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
     fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
         let scope_ids = cx.use_state(HashMap::<usize, ScopeId>::new());

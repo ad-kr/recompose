@@ -30,7 +30,7 @@ fn spawn_camera(mut commands: Commands) {
     commands.spawn(Camera3d::default());
 
     commands.spawn((
-        Root::new(Counter),
+        Root::new(counter),
         Node {
             display: Display::Flex,
             column_gap: Val::Px(8.0),
@@ -39,54 +39,50 @@ fn spawn_camera(mut commands: Commands) {
     ));
 }
 
-pub struct Counter;
+fn counter(cx: &mut Scope) -> impl Compose {
+    let count = cx.use_state(0);
 
-impl Compose for Counter {
-    fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
-        let count = cx.use_state(0);
+    let count_string = count.to_string();
+    let count_clone = count.clone();
 
-        let count_string = count.to_string();
-        let count_clone = count.clone();
-
-        (
-            Node {
-                display: Display::Flex,
-                column_gap: Val::Px(8.0),
-                padding: UiRect::all(Val::Px(8.0)),
-                ..default()
-            },
-            BackgroundColor(Srgba::WHITE.into()),
-        )
-            .children(vec![
-                (
-                    Node {
-                        width: Val::Px(32.0),
-                        height: Val::Px(32.0),
-                        ..default()
-                    },
-                    BackgroundColor(Srgba::RED.into()),
-                )
-                    .observe(move |_: Trigger<Pointer<Click>>, mut state: SetState| {
-                        state.set_fn(&count, |c| c - 100);
-                    })
-                    .keyed(0),
-                (
-                    Text::new(count_string),
-                    BackgroundColor(Srgba::GREEN.into()),
-                )
-                    .keyed(1),
-                (
-                    Node {
-                        width: Val::Px(32.0),
-                        height: Val::Px(32.0),
-                        ..default()
-                    },
-                    BackgroundColor(Srgba::BLUE.into()),
-                )
-                    .observe(move |_: Trigger<Pointer<Click>>, mut state: SetState| {
-                        state.set_fn(&count_clone, |c| c + 100);
-                    })
-                    .keyed(2),
-            ])
-    }
+    (
+        Node {
+            display: Display::Flex,
+            column_gap: Val::Px(8.0),
+            padding: UiRect::all(Val::Px(8.0)),
+            ..default()
+        },
+        BackgroundColor(Srgba::WHITE.into()),
+    )
+        .children(vec![
+            (
+                Node {
+                    width: Val::Px(32.0),
+                    height: Val::Px(32.0),
+                    ..default()
+                },
+                BackgroundColor(Srgba::RED.into()),
+            )
+                .observe(move |_: Trigger<Pointer<Click>>, mut state: SetState| {
+                    state.set_fn(&count, |c| c - 100);
+                })
+                .keyed(0),
+            (
+                Text::new(count_string),
+                BackgroundColor(Srgba::GREEN.into()),
+            )
+                .keyed(1),
+            (
+                Node {
+                    width: Val::Px(32.0),
+                    height: Val::Px(32.0),
+                    ..default()
+                },
+                BackgroundColor(Srgba::BLUE.into()),
+            )
+                .observe(move |_: Trigger<Pointer<Click>>, mut state: SetState| {
+                    state.set_fn(&count_clone, |c| c + 100);
+                })
+                .keyed(2),
+        ])
 }
