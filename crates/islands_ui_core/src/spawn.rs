@@ -50,7 +50,6 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
 
         cx.use_system(
             move |mut state: SetState, mut commands: Commands, roots: Query<&Root>| {
-                // TODO: If parent is None, we should use the root entity instead here
                 let mut ec = match *entity {
                     Some(entity) => commands.entity(entity),
                     None => {
