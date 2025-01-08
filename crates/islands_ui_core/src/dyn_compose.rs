@@ -19,15 +19,18 @@ impl DynCompose {
 impl Compose for DynCompose {
     fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
         let type_id = cx.use_state(self.type_id);
-        if let Some(existing_scope) = cx.children.first_mut() {
+
+        let create_new_scope = |cx: &mut Scope| {
+            let mut scope = Scope::new(self.compose.clone(), cx.id);
+            self.compose.recompose_scope(&mut scope);
+            cx.children.push(scope);
+            cx.set_state(&type_id, self.type_id);
+        };
+
+        if let Some(ref mut existing_scope) = cx.children.first_mut() {
             if *type_id != self.type_id {
                 existing_scope.will_decompose = true;
-
-                // TODO: Can this be rewritten?
-                let mut scope = Scope::new(self.compose.clone(), cx.id);
-                self.compose.recompose_scope(&mut scope);
-                cx.children.push(scope);
-                cx.set_state(&type_id, self.type_id);
+                create_new_scope(cx);
                 return;
             }
 
@@ -39,12 +42,7 @@ impl Compose for DynCompose {
             return;
         }
 
-        let mut scope = Scope::new(self.compose.clone(), cx.id);
-
-        self.compose.recompose_scope(&mut scope);
-
-        cx.children.push(scope);
-        cx.set_state(&type_id, self.type_id);
+        create_new_scope(cx);
     }
 
     fn ignore_children(&self) -> bool {
