@@ -165,8 +165,6 @@ impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
 
             cx.set_state(&scope_ids, new_scope_ids);
         }
-
-        // If scope exists in hashmap, but does not have a key in the vec, mark it for decompose and remove from hashmap
     }
 
     fn ignore_children(&self) -> bool {
@@ -182,15 +180,15 @@ pub trait Key: Send + Sync {
     fn key(&self) -> usize;
 }
 
-// ===
-// AnyCompose
-// ===
-
-// TODO: Take spawn inside this file, and make anycompose private again. We probably want to make it public at some
-// point though, because it's pretty useful.
+/// A trait that (re)composes and decomposes a scope. It is used to act as a "wrapper" for the `Compose` trait, which
+/// itself is not dyn-compatible. Since this trait is dyn-compatible, it can be stored in a `Box` or `Arc`.
 pub trait AnyCompose: Send + Sync {
+    /// This function is similar to the `compose` function on the `Compose` trait, but rather than returning the
+    /// children, it sets the children directly to the passed scope (if having children is desirable). Doing it this
+    /// way allows this trait to be dyn-compatible, which allows us to store it in a `Box` or `Arc`.
     fn recompose_scope(&self, scope: &mut Scope);
 
+    /// This function decomposes the scope. Usually this calls the `decompose` function on the `Compose` trait directly.
     fn decompose_scope(&self, scope: &mut Scope);
 }
 

@@ -26,17 +26,8 @@ fn main() {
         .run();
 }
 
-fn spawn_camera(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
+fn spawn_camera(mut commands: Commands) {
     commands.spawn(Camera3d::default());
-
-    let cube = Cuboid::new(1.0, 1.0, 1.0);
-    let mesh = meshes.add(cube.mesh());
-
-    let material = materials.add(StandardMaterial::default());
 
     commands.spawn((
         Root::new(Counter),
