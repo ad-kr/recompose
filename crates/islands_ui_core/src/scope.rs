@@ -1,5 +1,5 @@
 use crate::{
-    state::{DynState, GetStateChanged, State, StateId},
+    state::{Dependency, DynState, State, StateId},
     unique_id, AnyCompose, StateChanged,
 };
 use bevy_ecs::{
@@ -114,17 +114,8 @@ impl Scope<'_> {
         dyn_state.to_state()
     }
 
-    // TODO: I don't think i can mix different State<T> and State<U> in the same array??? Check it
-    pub fn use_effect<'a>(
-        &'a mut self,
-        effect: impl Fn(),
-        dependecies: impl IntoIterator<Item = impl GetStateChanged + 'a>,
-    ) {
-        let any_changed = dependecies
-            .into_iter()
-            .any(|dep| matches!(dep.get_state_changed(), StateChanged::Changed));
-
-        if !any_changed {
+    pub fn use_effect(&mut self, effect: impl Fn(), dependecies: impl Dependency) {
+        if !dependecies.has_changed() {
             return;
         }
 
@@ -133,7 +124,7 @@ impl Scope<'_> {
 
     pub fn use_mount(&mut self, callback: impl Fn()) {
         let once = self.use_state(());
-        self.use_effect(callback, [once]);
+        self.use_effect(callback, once);
     }
 
     // TODO: Add description about that it is not cached

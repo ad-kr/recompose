@@ -1,4 +1,5 @@
 use bevy_ecs::system::{ResMut, Resource, SystemParam};
+use paste::paste;
 use std::{any::Any, collections::HashMap, ops::Deref, sync::Arc};
 
 type ArcAny = Arc<dyn Any + Send + Sync>;
@@ -40,10 +41,6 @@ impl SetState<'_> {
         );
     }
 }
-
-// ===
-// State
-// ===
 
 #[derive(Default, Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct StateId(pub(crate) usize);
@@ -90,7 +87,8 @@ impl<T> Deref for State<T> {
     }
 }
 
-pub trait GetStateChanged {
+/// A trait for getting the state changed status.
+trait GetStateChanged {
     fn get_state_changed(&self) -> StateChanged;
 }
 
@@ -104,3 +102,39 @@ impl<T> GetStateChanged for State<T> {
         self.changed
     }
 }
+
+/// A trait for checking if dependencies have changed.
+pub trait Dependency {
+    fn has_changed(&self) -> bool;
+}
+
+macro_rules! impl_dependency {
+    ($($d:expr),*) => {
+        paste! {
+            impl<$([<D$d>]: GetStateChanged),*> Dependency for ($([<D$d>]),*) {
+                fn has_changed(&self) -> bool {
+                    let ($([<d$d>]),*) = self;
+
+                    $(matches!([<d$d>].get_state_changed(), StateChanged::Changed) ||)* false
+                }
+            }
+        }
+
+    };
+}
+
+impl<D: GetStateChanged> Dependency for D {
+    fn has_changed(&self) -> bool {
+        matches!(self.get_state_changed(), StateChanged::Changed)
+    }
+}
+
+impl_dependency!(0, 1);
+impl_dependency!(0, 1, 2);
+impl_dependency!(0, 1, 2, 3);
+impl_dependency!(0, 1, 2, 3, 4);
+impl_dependency!(0, 1, 2, 3, 4, 5);
+impl_dependency!(0, 1, 2, 3, 4, 5, 6);
+impl_dependency!(0, 1, 2, 3, 4, 5, 6, 7);
+impl_dependency!(0, 1, 2, 3, 4, 5, 6, 7, 8);
+impl_dependency!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
