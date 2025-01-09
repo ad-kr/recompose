@@ -2734,27 +2734,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "islands_ui"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "bevy-inspector-egui",
- "islands_ui_core",
-]
-
-[[package]]
-name = "islands_ui_core"
-version = "0.1.0"
-dependencies = [
- "bevy_app",
- "bevy_color",
- "bevy_ecs",
- "bevy_hierarchy",
- "bevy_ui",
- "paste",
-]
-
-[[package]]
 name = "itertools"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3775,6 +3754,27 @@ checksum = "4a04b892cb6f91951f144c33321843790c8574c825aafdb16d815fd7183b5229"
 dependencies = [
  "bytemuck",
  "font-types",
+]
+
+[[package]]
+name = "recompose"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy-inspector-egui",
+ "recompose_core",
+]
+
+[[package]]
+name = "recompose_core"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_color",
+ "bevy_ecs",
+ "bevy_hierarchy",
+ "bevy_ui",
+ "paste",
 ]
 
 [[package]]

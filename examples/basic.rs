@@ -6,7 +6,7 @@ use bevy::{
     },
 };
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use islands_ui_core::{
+use recompose_core::{
     bundle_compose::BundleCompose, scope::Scope, state::SetState, Compose, IslandsUiPlugin, Root,
 };
 
