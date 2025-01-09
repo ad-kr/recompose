@@ -11,7 +11,7 @@ use dyn_compose::DynCompose;
 use scope::{Scope, ScopeId};
 use state::{SetState, StateChanged, StateSetter, StateSetterAction};
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -94,6 +94,7 @@ impl<C: Compose + 'static, F: (Fn(&mut Scope) -> C) + Send + Sync> Compose for F
     }
 }
 
+// TODO: This implementation works, but can be massively improved.
 impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
     fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
         let scope_ids = cx.use_state(HashMap::<usize, ScopeId>::new());
@@ -131,12 +132,21 @@ impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
             new_scope_ids.insert(key, scope_id);
         }
 
-        // TODO: We can probably further modfiy this value, and then just set it at the end, instead of doing it in the next loops
+        // TODO: We can probably further modfiy this value, and then just set it at the end, instead of doing it multiple times in the next loops
         if new_scope_ids != *scope_ids {
             cx.set_state(&scope_ids, new_scope_ids);
         }
 
         let keys = self.iter().map(|k| k.key()).collect::<Vec<_>>();
+
+        let mut unique_keys = HashSet::new();
+        for key in keys.iter() {
+            let is_unique = unique_keys.insert(key);
+
+            if !is_unique {
+                panic!("Duplicate key found: {:?}", key);
+            }
+        }
 
         // TODO: Is there a better way to order the scopes? Or just ensure that they are always in the right order?
         cx.children.sort_by_key(|scope| {
