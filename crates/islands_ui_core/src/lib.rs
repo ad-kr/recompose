@@ -54,18 +54,21 @@ fn unique_id() -> usize {
     UNIQUE_ID.fetch_add(1, Ordering::Relaxed)
 }
 
-// ===
-// Compose
-// ===
-
+/// A trait that defines how a scope should be composed and decomposed. This trait is used to define the structure of a
+/// scope. The `compose` function is called when the scope is composed or recomposed, and the `decompose` function is
+/// called when the scope is decomposed.
 pub trait Compose: Send + Sync {
+    /// Compose the scope. This function is run when the composable is first initiated. It is then recomposed whenever
+    /// it's parent scope is recomposed, or any of the states used inside the composable are changed.
     fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a;
 
+    /// Decomposes the scope. This function is run when the composable is removed from the parent scope.
     fn decompose(&self, cx: &mut Scope) {
         let _ = cx;
     }
 
-    /// Whether the compose should stop rendering further nodes or not.
+    /// Whether the children returned by the `compose` function should be ignored. This is useful when the composable
+    /// has custom logic for handling children. This is mostly used internally.
     fn ignore_children(&self) -> bool {
         false
     }
