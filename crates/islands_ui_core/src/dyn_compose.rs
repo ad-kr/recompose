@@ -1,13 +1,18 @@
 use crate::{AnyCompose, Compose, Scope};
 use std::{any::Any, any::TypeId, sync::Arc};
 
+/// A dynamic composition structure that holds a type-erased composer. This allows for "dynamic dispatch" of the
+/// `Compose` trait.
 #[derive(Clone)]
 pub struct DynCompose {
+    /// The `TypeId` is used to determine if the composer has changed type between compositions. If it has, we have to
+    /// decompose the previous scope and create a new one.
     type_id: TypeId,
     compose: Arc<dyn AnyCompose>,
 }
 
 impl DynCompose {
+    /// Creates a new `DynCompose` instance from a given composer.
     pub fn new(compose: impl Compose + 'static) -> Self {
         Self {
             type_id: compose.type_id(),
