@@ -1,27 +1,11 @@
-use bevy::{
-    prelude::*,
-    render::{
-        settings::{Backends, RenderCreation, WgpuSettings},
-        RenderPlugin,
-    },
-};
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use recompose_core::{
-    bundle_compose::BundleCompose, scope::Scope, state::SetState, Compose, IslandsUiPlugin, Root,
-};
+use bevy::prelude::*;
+use recompose::prelude::*;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins.set(RenderPlugin {
-            render_creation: RenderCreation::Automatic(WgpuSettings {
-                backends: Some(Backends::VULKAN),
-                ..default()
-            }),
-            ..default()
-        }))
+        .add_plugins(DefaultPlugins)
         .add_plugins(MeshPickingPlugin)
-        .add_plugins(WorldInspectorPlugin::new())
-        .add_plugins(IslandsUiPlugin)
+        .add_plugins(RecomposePlugin)
         .add_systems(Startup, spawn_camera)
         .add_systems(Update, despawn_roots)
         .run();
