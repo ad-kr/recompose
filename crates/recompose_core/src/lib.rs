@@ -25,9 +25,9 @@ pub mod scope;
 pub mod spawn;
 pub mod state;
 
-pub struct IslandsUiPlugin;
+pub struct RecomposePlugin;
 
-impl Plugin for IslandsUiPlugin {
+impl Plugin for RecomposePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<StateSetter>().add_systems(
             PreUpdate,
