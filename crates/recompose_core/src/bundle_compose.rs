@@ -30,8 +30,7 @@ where
         Keyed::new(key, self.to_compose())
     }
 
-    /// Adds an observer to the spawned entity. The observer will be added to the entity after the bundle is inserted,
-    /// and is only added once.
+    /// Adds an observer to the spawned entity.
     fn observe<E: Event, B2: Bundle, M>(
         self,
         observer: impl IntoObserverSystem<E, B2, M> + Clone + Sync,

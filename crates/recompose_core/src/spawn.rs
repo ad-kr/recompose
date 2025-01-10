@@ -6,7 +6,7 @@ use bevy_ecs::{
     entity::Entity,
     system::{Commands, EntityCommands, Query},
 };
-use bevy_hierarchy::{BuildChildren, DespawnRecursiveExt};
+use bevy_hierarchy::{BuildChildren, DespawnRecursiveExt, Parent};
 use std::{collections::HashMap, sync::Arc};
 
 #[derive(Clone)]
@@ -53,14 +53,15 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
                 let mut ec = match *entity {
                     Some(entity) => commands.entity(entity),
                     None => {
-                        let mut ec = commands.spawn_empty();
-                        observers.iter().for_each(|observer| observer(&mut ec));
+                        let ec = commands.spawn_empty();
                         state.set(&entity, Some(ec.id()));
                         ec
                     }
                 };
 
+                ec.retain::<Parent>();
                 ec.try_insert(bundle.clone());
+                observers.iter().for_each(|observer| observer(&mut ec));
 
                 let Some(parent_scope_id) = parent else {
                     return;
