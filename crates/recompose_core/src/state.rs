@@ -20,19 +20,19 @@ pub struct SetState<'w> {
 }
 
 impl SetState<'_> {
-    pub fn set<T: Send + Sync + 'static>(&mut self, state: &State<T>, value: T) {
+    pub fn set<T: Send + Sync + 'static>(&mut self, state: impl GetStateId<T>, value: T) {
         self.setter
             .queued
-            .insert(state.id, StateSetterAction::Set(Arc::new(value)));
+            .insert(state.get_id(), StateSetterAction::Set(Arc::new(value)));
     }
 
     pub fn set_fn<T: Send + Sync + 'static>(
         &mut self,
-        state: &State<T>,
+        state: impl GetStateId<T>,
         value_fn: impl (Fn(&T) -> T) + Send + Sync + 'static,
     ) {
         self.setter.queued.insert(
-            state.id,
+            state.get_id(),
             StateSetterAction::SetFn(Box::new(move |input| {
                 let input = input.downcast_ref::<T>().unwrap();
 
@@ -84,6 +84,51 @@ impl<T> Deref for State<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.value
+    }
+}
+
+impl<T: Copy> State<T> {
+    pub fn to_ref(&self) -> StateRef<T> {
+        StateRef {
+            id: self.id,
+            value: *self.value,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct StateRef<T> {
+    pub(crate) id: StateId,
+    pub(crate) value: T,
+}
+
+impl<T> Deref for StateRef<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+pub trait GetStateId<T> {
+    fn get_id(self) -> StateId;
+}
+
+impl<T> GetStateId<T> for State<T> {
+    fn get_id(self) -> StateId {
+        self.id
+    }
+}
+
+impl<T> GetStateId<T> for &State<T> {
+    fn get_id(self) -> StateId {
+        self.id
+    }
+}
+
+impl<T> GetStateId<T> for StateRef<T> {
+    fn get_id(self) -> StateId {
+        self.id
     }
 }
 
