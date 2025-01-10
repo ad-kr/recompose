@@ -8,6 +8,7 @@ use bevy_ecs::{
     world::{DeferredWorld, World},
 };
 use dyn_compose::DynCompose;
+use paste::paste;
 use scope::{Scope, ScopeId};
 use state::{SetState, StateChanged, StateSetter, StateSetterAction};
 use std::{
@@ -190,6 +191,45 @@ impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
         true
     }
 }
+
+macro_rules! impl_compose_for_tuple {
+    ($($c:expr),*) => {
+        paste! {
+            impl<$([<C$c>]: Compose + Clone + 'static),*> Compose for ($([<C$c>]),*) {
+                fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
+                    $(
+                        if let Some(existing_scope) = cx.children.get_mut($c) {
+                            existing_scope.composer = Arc::new(self.$c.clone());
+                            existing_scope
+                                .composer
+                                .clone()
+                                .recompose_scope(existing_scope);
+                        } else {
+                            let compose = Arc::new(self.$c.clone());
+                            let mut scope = Scope::new(compose, cx.id);
+                            self.$c.recompose_scope(&mut scope);
+                            cx.children.push(scope);
+                        }
+                    )*
+                }
+
+                fn ignore_children(&self) -> bool {
+                    true
+                }
+            }
+        }
+    };
+}
+
+impl_compose_for_tuple!(0, 1);
+impl_compose_for_tuple!(0, 1, 2);
+impl_compose_for_tuple!(0, 1, 2, 3);
+impl_compose_for_tuple!(0, 1, 2, 3, 4);
+impl_compose_for_tuple!(0, 1, 2, 3, 4, 5);
+impl_compose_for_tuple!(0, 1, 2, 3, 4, 5, 6);
+impl_compose_for_tuple!(0, 1, 2, 3, 4, 5, 6, 7);
+impl_compose_for_tuple!(0, 1, 2, 3, 4, 5, 6, 7, 8);
+impl_compose_for_tuple!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
 
 // ===
 // Key
