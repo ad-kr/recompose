@@ -6,7 +6,7 @@ type ArcAny = Arc<dyn Any + Send + Sync>;
 
 pub(crate) enum StateSetterAction {
     Set(ArcAny),
-    SetFn(Box<dyn (Fn(ArcAny) -> ArcAny) + Send + Sync>),
+    Modify(Box<dyn (Fn(ArcAny) -> ArcAny) + Send + Sync>),
 }
 
 #[derive(Resource, Default)]
@@ -26,14 +26,14 @@ impl SetState<'_> {
             .insert(state.get_id(), StateSetterAction::Set(Arc::new(value)));
     }
 
-    pub fn set_fn<T: Send + Sync + 'static>(
+    pub fn modify<T: Send + Sync + 'static>(
         &mut self,
         state: impl GetStateId<T>,
         value_fn: impl (Fn(&T) -> T) + Send + Sync + 'static,
     ) {
         self.setter.queued.insert(
             state.get_id(),
-            StateSetterAction::SetFn(Box::new(move |input| {
+            StateSetterAction::Modify(Box::new(move |input| {
                 let input = input.downcast_ref::<T>().unwrap();
 
                 Arc::new((value_fn)(input))

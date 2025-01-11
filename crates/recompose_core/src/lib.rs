@@ -372,7 +372,7 @@ fn set_states(mut setter: SetState, mut roots: Query<&mut Root>) {
 
                 state.value = match new_value {
                     StateSetterAction::Set(value) => value,
-                    StateSetterAction::SetFn(f) => f(state.value.clone()),
+                    StateSetterAction::Modify(f) => f(state.value.clone()),
                 };
                 state.changed = StateChanged::Queued;
             }
