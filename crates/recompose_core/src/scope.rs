@@ -13,6 +13,9 @@ pub struct ScopeId(usize);
 
 pub struct Scope<'a> {
     pub(crate) id: ScopeId,
+
+    /// Indicates which index in the parent's children vector this scope is.
+    pub(crate) index: usize,
     pub(crate) entity: Option<Entity>,
     pub(crate) parent: Option<ScopeId>,
     pub(crate) will_decompose: bool,
@@ -27,6 +30,7 @@ impl Default for Scope<'_> {
     fn default() -> Self {
         Self {
             id: ScopeId(unique_id()),
+            index: Default::default(),
             entity: None,
             parent: None,
             will_decompose: false,
@@ -40,9 +44,10 @@ impl Default for Scope<'_> {
 }
 
 impl Scope<'_> {
-    pub(crate) fn new(composer: Arc<dyn AnyCompose>, parent: ScopeId) -> Self {
+    pub(crate) fn new(composer: Arc<dyn AnyCompose>, parent: ScopeId, index: usize) -> Self {
         Self {
             id: ScopeId(unique_id()),
+            index,
             entity: None,
             parent: Some(parent),
             will_decompose: false,
@@ -57,6 +62,7 @@ impl Scope<'_> {
     pub(crate) fn as_root_scope(entity: Entity, composer: Arc<dyn AnyCompose>) -> Self {
         Self {
             id: ScopeId(unique_id()),
+            index: 0,
             entity: Some(entity),
             parent: None,
             will_decompose: false,

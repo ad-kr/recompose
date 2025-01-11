@@ -4,9 +4,10 @@ use bevy_ecs::{
     entity::Entity,
     query::Added,
     schedule::IntoSystemConfigs,
-    system::{Query, SystemState},
+    system::{Commands, Query, SystemState},
     world::{DeferredWorld, World},
 };
+use bevy_hierarchy::{BuildChildren, Parent};
 use dyn_compose::DynCompose;
 use paste::paste;
 use scope::{Scope, ScopeId};
@@ -38,6 +39,7 @@ impl Plugin for RecomposePlugin {
                 drop_decomposed_scopes,
                 set_states,
                 recompose,
+                order_children,
                 decompose,
             )
                 .chain(),
@@ -106,7 +108,7 @@ impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
         let mut new_scope_ids = (*scope_ids).clone();
 
         // TODO: Add check for when key values are duplicated
-        for key_compose in self.iter() {
+        for (index, key_compose) in self.iter().enumerate() {
             let key = key_compose.key();
             let scope_id = scope_ids.get(&key);
 
@@ -121,13 +123,14 @@ impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
                             scope_id
                         )
                     });
+                scope.index = index;
                 scope.composer = Arc::new(key_compose.clone());
                 scope.composer.clone().recompose_scope(scope);
                 continue;
             }
 
             let compose = Arc::new(key_compose.clone());
-            let mut scope = Scope::new(compose, cx.id);
+            let mut scope = Scope::new(compose, cx.id, index);
             let scope_id = scope.id;
             scope.composer.clone().recompose_scope(&mut scope);
 
@@ -206,7 +209,7 @@ macro_rules! impl_compose_for_tuple {
                                 .recompose_scope(existing_scope);
                         } else {
                             let compose = Arc::new(self.$c.clone());
-                            let mut scope = Scope::new(compose, cx.id);
+                            let mut scope = Scope::new(compose, cx.id, $c);
                             self.$c.recompose_scope(&mut scope);
                             cx.children.push(scope);
                         }
@@ -252,6 +255,7 @@ pub trait AnyCompose: Send + Sync {
 }
 
 impl<C: Compose> AnyCompose for C {
+    // TODO: Make this take in the new compose value and index, since we basicall always need to set it anyways
     fn recompose_scope(&self, scope: &mut Scope) {
         scope.state_index = 0;
 
@@ -280,7 +284,7 @@ impl<C: Compose> AnyCompose for C {
         };
 
         let child_compose = Arc::new(child);
-        let mut child_scope = Scope::new(child_compose.clone(), scope.id);
+        let mut child_scope = Scope::new(child_compose.clone(), scope.id, 0);
 
         child_compose.recompose_scope(&mut child_scope);
 
@@ -321,7 +325,10 @@ fn run_queued_systems(world: &mut World) {
 
         while let Some(scope) = scopes.pop_front() {
             queued_systems.append(&mut scope.queued_systems);
-            scopes.extend(scope.children.iter_mut());
+
+            for child in scope.children.iter_mut().rev() {
+                scopes.push_front(child);
+            }
         }
     }
 
@@ -342,7 +349,9 @@ fn drop_decomposed_scopes(mut roots: Query<&mut Root>) {
 
         while let Some(scope) = scopes.pop_front() {
             scope.children.retain(|child| !child.will_decompose);
-            scopes.extend(scope.children.iter_mut());
+            for child in scope.children.iter_mut().rev() {
+                scopes.push_front(child);
+            }
         }
     }
 }
@@ -368,7 +377,9 @@ fn set_states(mut setter: SetState, mut roots: Query<&mut Root>) {
                 state.changed = StateChanged::Queued;
             }
 
-            scopes.extend(scope.children.iter_mut());
+            for child in scope.children.iter_mut().rev() {
+                scopes.push_front(child);
+            }
         }
     }
 }
@@ -394,7 +405,39 @@ fn recompose(mut roots: Query<&mut Root>) {
                 continue;
             }
 
-            scopes.extend(scope.children.iter_mut());
+            for child in scope.children.iter_mut().rev() {
+                scopes.push_front(child);
+            }
+        }
+    }
+}
+
+#[derive(Component, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct ChildOrder(pub usize);
+
+fn order_children(mut commands: Commands, parents: Query<(Entity, &Parent, &ChildOrder)>) {
+    let mut parent_children = HashMap::<Entity, Vec<(Entity, ChildOrder)>>::new();
+
+    for (entity, parent, order) in parents.iter() {
+        let parent_entity = parent.get();
+        let entry = parent_children.get_mut(&parent_entity);
+
+        if let Some(entry) = entry {
+            entry.push((entity, *order));
+        } else {
+            parent_children.insert(parent_entity, vec![(entity, *order)]);
+        }
+    }
+
+    for (parent_entity, children) in parent_children.iter_mut() {
+        children.sort_by_key(|c| c.1);
+
+        for (entity, _) in children.iter() {
+            let Some(mut ec) = commands.get_entity(*entity) else {
+                continue;
+            };
+
+            ec.set_parent(*parent_entity);
         }
     }
 }
@@ -417,7 +460,9 @@ fn decompose(mut roots: Query<&mut Root>) {
                 }
             }
 
-            scopes.extend(scope.children.iter_mut());
+            for child in scope.children.iter_mut().rev() {
+                scopes.push_front(child);
+            }
         }
     }
 }
@@ -445,7 +490,9 @@ impl Component for Root {
             while let Some(scope) = scopes.pop_front() {
                 let composer = scope.composer.clone();
                 composer.decompose_scope(scope);
-                scopes.extend(scope.children.iter_mut());
+                for child in scope.children.iter_mut().rev() {
+                    scopes.push_front(child);
+                }
             }
         }
 

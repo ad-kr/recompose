@@ -1,12 +1,13 @@
 use crate::{
-    bundle_compose::BundleCompose, dyn_compose::DynCompose, Compose, Root, Scope, SetState,
+    bundle_compose::BundleCompose, dyn_compose::DynCompose, ChildOrder, Compose, Root, Scope,
+    SetState,
 };
 use bevy_ecs::{
     bundle::Bundle,
     entity::Entity,
     system::{Commands, EntityCommands, Query},
 };
-use bevy_hierarchy::{BuildChildren, DespawnRecursiveExt, Parent};
+use bevy_hierarchy::{BuildChildren, DespawnRecursiveExt};
 use std::{collections::HashMap, sync::Arc};
 
 #[derive(Clone)]
@@ -40,6 +41,7 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
     fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
         let entity = cx.use_state(None);
         let bundle = (self.bundle_generator)();
+        let index = cx.index;
 
         if let Some(entity) = *entity {
             cx.set_entity(entity);
@@ -53,15 +55,18 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
                 let mut ec = match *entity {
                     Some(entity) => commands.entity(entity),
                     None => {
-                        let ec = commands.spawn_empty();
+                        let mut ec = commands.spawn_empty();
+                        observers.iter().for_each(|o| o(&mut ec));
                         state.set(&entity, Some(ec.id()));
                         ec
                     }
                 };
 
-                ec.retain::<Parent>();
-                ec.try_insert(bundle.clone());
-                observers.iter().for_each(|observer| observer(&mut ec));
+                // TODO: If `ObservedBy` was public, we could run `ec.retain::<(Parent, ObservedBy)>();` here, which
+                // would enable us to change bundle types between "recomposes". This would also require that we stored
+                // Bundle information more dynamically, which might be impossible, since Bundle is not dyn-compatible.
+                // How a about a bundle generator? `|| -> impl Bundle`?
+                ec.try_insert((ChildOrder(index), bundle.clone()));
 
                 let Some(parent_scope_id) = parent else {
                     return;
