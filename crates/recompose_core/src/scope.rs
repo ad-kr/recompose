@@ -159,7 +159,6 @@ impl Scope<'_> {
         self.entity
     }
 
-    // TODO: Make this private again when taking Spawn back into the crate
     pub(crate) fn flatten_to_hashmap(&self) -> HashMap<ScopeId, &Scope> {
         let mut map = HashMap::new();
 
