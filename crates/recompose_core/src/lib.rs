@@ -20,9 +20,10 @@ use std::{
     },
 };
 
-pub mod bundle_compose;
+pub mod bundle_extension;
 pub mod dyn_compose;
 pub mod keyed;
+pub mod modify;
 pub mod scope;
 pub mod spawn;
 pub mod state;

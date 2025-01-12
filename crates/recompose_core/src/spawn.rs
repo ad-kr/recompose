@@ -1,11 +1,11 @@
 use crate::{
-    bundle_compose::BundleCompose, dyn_compose::DynCompose, ChildOrder, Compose, Root, Scope,
-    SetState,
+    modify::{Modifier, Modify},
+    ChildOrder, Compose, Root, Scope, SetState,
 };
 use bevy_ecs::{
     bundle::Bundle,
     entity::Entity,
-    system::{Commands, EntityCommands, Query},
+    system::{Commands, Query},
 };
 use bevy_hierarchy::{BuildChildren, DespawnRecursiveExt};
 use std::{collections::HashMap, sync::Arc};
@@ -13,11 +13,7 @@ use std::{collections::HashMap, sync::Arc};
 #[derive(Clone)]
 pub struct Spawn<B: Bundle + Clone> {
     pub(crate) bundle_generator: Arc<dyn (Fn() -> B) + Send + Sync>,
-    pub(crate) children: DynCompose,
-    // Storing observers directly would be better, but it's a little tricky, so for now we store a function that adds
-    // the observer given entity commands.
-    #[allow(clippy::type_complexity)]
-    pub(crate) observer_adders: Vec<Arc<dyn Fn(&mut EntityCommands) + Send + Sync>>,
+    pub(crate) modifier: Modifier,
 }
 
 impl<B: Bundle + Clone> Spawn<B> {
@@ -25,15 +21,14 @@ impl<B: Bundle + Clone> Spawn<B> {
     pub fn new(bundle: B) -> Self {
         Self {
             bundle_generator: Arc::new(move || bundle.clone()),
-            children: DynCompose::new(()),
-            observer_adders: vec![],
+            modifier: Modifier::default(),
         }
     }
 }
 
-impl<B: Bundle + Clone> BundleCompose for Spawn<B> {
-    fn to_compose(self) -> Spawn<impl Bundle + Clone> {
-        self
+impl<B: Bundle + Clone> Modify for Spawn<B> {
+    fn modifier(&mut self) -> &mut Modifier {
+        &mut self.modifier
     }
 }
 
@@ -48,7 +43,7 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
         };
 
         let parent = cx.get_parent();
-        let observers = self.observer_adders.clone();
+        let observers = self.modifier.observer_adders.clone();
 
         cx.use_system(
             move |mut state: SetState, mut commands: Commands, roots: Query<&Root>| {
@@ -94,7 +89,7 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
             },
         );
 
-        self.children.clone()
+        self.modifier.children.clone()
     }
 
     fn decompose(&self, cx: &mut Scope) {
