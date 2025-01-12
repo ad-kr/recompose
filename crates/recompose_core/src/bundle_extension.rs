@@ -1,4 +1,6 @@
-use crate::{dyn_compose::DynCompose, keyed::Keyed, modify::Modify, spawn::Spawn, Compose};
+use crate::{
+    dyn_compose::DynCompose, keyed::Keyed, modify::Modify, spawn::Spawn, state::GetStateId, Compose,
+};
 use bevy_ecs::{bundle::Bundle, event::Event, system::IntoObserverSystem};
 
 // This is basically mirroring the `Modify` trait. It would be great to unify those two, but it's tricky since that
@@ -36,6 +38,11 @@ pub trait BundleExtension: Sized {
         observer: impl IntoObserverSystem<E, B2, M> + Copy + Sync,
     ) -> Spawn<impl Bundle + Clone> {
         self.to_compose().observe_retained(observer)
+    }
+
+    /// Binds the given `State<bool>` or `StateRef<bool>` to the hovered state of the entity.
+    fn bind_hover(self, hover_state: impl GetStateId<bool>) -> Spawn<impl Bundle + Clone> {
+        self.to_compose().bind_hover(hover_state)
     }
 }
 

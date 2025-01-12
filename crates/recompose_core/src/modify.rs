@@ -1,11 +1,17 @@
-use crate::{dyn_compose::DynCompose, keyed::Keyed, Compose};
+use crate::{
+    dyn_compose::DynCompose,
+    keyed::Keyed,
+    state::{GetStateId, SetState, StateRef},
+    Compose,
+};
 use bevy_ecs::{
     bundle::Bundle,
     entity::Entity,
     event::Event,
-    observer::Observer,
+    observer::{Observer, Trigger},
     system::{EntityCommands, IntoObserverSystem},
 };
+use bevy_picking::events::{Out, Over, Pointer};
 use std::sync::Arc;
 
 // Storing observers directly would be better, but it's a little tricky, so for now we store a function that adds
@@ -20,12 +26,12 @@ pub(crate) enum ObserverGenerator {
 
 impl ObserverGenerator {
     fn new<E: Event, B2: Bundle, M>(
-        observer: impl IntoObserverSystem<E, B2, M> + Copy + Sync,
+        observer: impl IntoObserverSystem<E, B2, M> + Clone + Sync,
     ) -> Self {
         let f = Arc::new(move |entity: &mut EntityCommands| {
             let target_entity = entity.id();
             let commands = entity.commands_mut();
-            let o = Observer::new(observer).with_entity(target_entity);
+            let o = Observer::new(observer.clone()).with_entity(target_entity);
             commands.spawn(o).id()
         });
 
@@ -33,12 +39,12 @@ impl ObserverGenerator {
     }
 
     fn retained<E: Event, B2: Bundle, M>(
-        observer: impl IntoObserverSystem<E, B2, M> + Copy + Sync,
+        observer: impl IntoObserverSystem<E, B2, M> + Clone + Sync,
     ) -> Self {
         let f = Arc::new(move |entity: &mut EntityCommands| {
             let target_entity = entity.id();
             let commands = entity.commands_mut();
-            let o = Observer::new(observer).with_entity(target_entity);
+            let o = Observer::new(observer.clone()).with_entity(target_entity);
             commands.spawn(o).id()
         });
 
@@ -108,7 +114,7 @@ pub trait Modify: Sized {
     /// If you want to retain the observer, use the [`observe_retained`](Modify::observe_retained) function.
     fn observe<E: Event, B2: Bundle, M>(
         mut self,
-        observer: impl IntoObserverSystem<E, B2, M> + Copy + Sync,
+        observer: impl IntoObserverSystem<E, B2, M> + Clone + Sync,
     ) -> Self {
         let observer_generator = ObserverGenerator::new(observer);
         let modifier = self.modifier();
@@ -120,12 +126,28 @@ pub trait Modify: Sized {
     /// Adds an observer to the spawned entity. Retained observers are only added once, when the entity is first spawned.
     fn observe_retained<E: Event, B2: Bundle, M>(
         mut self,
-        observer: impl IntoObserverSystem<E, B2, M> + Copy + Sync,
+        observer: impl IntoObserverSystem<E, B2, M> + Clone + Sync,
     ) -> Self {
         let observer_generator = ObserverGenerator::retained(observer);
         let modifier = self.modifier();
         modifier.observer_generators.push(observer_generator);
 
         self
+    }
+
+    /// Binds the given `State<bool>` or `StateRef<bool>` to the hovered state of the entity.
+    fn bind_hover(self, hover_state: impl GetStateId<bool>) -> Self {
+        // Workaround for the sending the state to the observer without cloning or copying it.
+        let state_ref = StateRef {
+            id: hover_state.get_id(),
+            value: false,
+        };
+
+        self.observe_retained(move |_: Trigger<Pointer<Over>>, mut state: SetState| {
+            state.set(state_ref, true)
+        })
+        .observe_retained(move |_: Trigger<Pointer<Out>>, mut state: SetState| {
+            state.set(state_ref, false)
+        })
     }
 }
