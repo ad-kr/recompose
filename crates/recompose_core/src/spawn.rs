@@ -35,6 +35,7 @@ impl<B: Bundle + Clone> Modify for Spawn<B> {
 impl<B: Bundle + Clone> Compose for Spawn<B> {
     fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
         let entity = cx.use_state(None);
+        let temporary_observers = cx.use_state(Vec::new());
         let bundle = (self.bundle_generator)();
         let index = cx.index;
 
@@ -47,15 +48,38 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
 
         cx.use_system(
             move |mut state: SetState, mut commands: Commands, roots: Query<&Root>| {
+                for observer_entity in temporary_observers.iter() {
+                    let Some(observer_ec) = commands.get_entity(*observer_entity) else {
+                        continue;
+                    };
+
+                    observer_ec.try_despawn_recursive();
+                }
+
                 let mut ec = match *entity {
                     Some(entity) => commands.entity(entity),
                     None => {
                         let mut ec = commands.spawn_empty();
-                        observers.iter().for_each(|o| o(&mut ec));
+
+                        observers
+                            .iter()
+                            .filter(|(retained, _)| *retained)
+                            .for_each(|(_, o)| {
+                                o(&mut ec);
+                            });
+
                         state.set(&entity, Some(ec.id()));
                         ec
                     }
                 };
+
+                let observer_entities = observers
+                    .iter()
+                    .filter(|(retained, _)| !*retained)
+                    .map(|(_, o)| o(&mut ec))
+                    .collect::<Vec<_>>();
+
+                state.set_unchanged(&temporary_observers, observer_entities);
 
                 ec.try_insert(bundle.clone());
 

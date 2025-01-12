@@ -1,7 +1,9 @@
 use crate::{dyn_compose::DynCompose, keyed::Keyed, Compose};
 use bevy_ecs::{
     bundle::Bundle,
+    entity::Entity,
     event::Event,
+    observer::Observer,
     system::{EntityCommands, IntoObserverSystem},
 };
 use std::sync::Arc;
@@ -11,8 +13,14 @@ pub struct Modifier {
     pub(crate) children: Option<DynCompose>,
     // Storing observers directly would be better, but it's a little tricky, so for now we store a function that adds
     // the observer given entity commands.
+    // TODO: Make the inner value an enum, so its more explicit. The created `ObserverGenerator` can have a `new` or
+    // `retained` method that creates the observer, so that we don't have to have that implementation in the function.
+    // TODO: Rename to `observer_generators`
     #[allow(clippy::type_complexity)]
-    pub(crate) observer_adders: Vec<Arc<dyn Fn(&mut EntityCommands) + Send + Sync>>,
+    pub(crate) observer_adders: Vec<(
+        bool,
+        Arc<dyn (Fn(&mut EntityCommands) -> Entity) + Send + Sync>,
+    )>,
 }
 
 impl Modifier {
@@ -56,17 +64,39 @@ pub trait Modify: Sized {
         Keyed::new(key, self)
     }
 
-    /// Adds an observer to the spawned entity. Observers are only added once, when the entity is first spawned.
+    /// Adds an observer to the spawned entity. Observers are created and removed each time the composable recomposes.
+    /// If you want to retain the observer, use the [`observe_retained`](Modify::observe_retained) function.
     fn observe<E: Event, B2: Bundle, M>(
         mut self,
-        observer: impl IntoObserverSystem<E, B2, M> + Clone + Sync,
+        observer: impl IntoObserverSystem<E, B2, M> + Copy + Sync,
     ) -> Self {
         let f = Arc::new(move |entity: &mut EntityCommands| {
-            entity.observe(observer.clone());
+            let target_entity = entity.id();
+            let commands = entity.commands_mut();
+            let o = Observer::new(observer).with_entity(target_entity);
+            commands.spawn(o).id()
         });
 
         let modifier = self.modifier();
-        modifier.observer_adders.push(f);
+        modifier.observer_adders.push((false, f));
+
+        self
+    }
+
+    /// Adds an observer to the spawned entity. Retained observers are only added once, when the entity is first spawned.
+    fn observe_retained<E: Event, B2: Bundle, M>(
+        mut self,
+        observer: impl IntoObserverSystem<E, B2, M> + Copy + Sync,
+    ) -> Self {
+        let f = Arc::new(move |entity: &mut EntityCommands| {
+            let target_entity = entity.id();
+            let commands = entity.commands_mut();
+            let o = Observer::new(observer).with_entity(target_entity);
+            commands.spawn(o).id()
+        });
+
+        let modifier = self.modifier();
+        modifier.observer_adders.push((true, f));
 
         self
     }

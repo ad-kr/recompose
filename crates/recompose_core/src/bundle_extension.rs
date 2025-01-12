@@ -25,9 +25,17 @@ pub trait BundleExtension: Sized {
     /// Adds an observer to the spawned entity. Observers are only added once, when the entity is first spawned.
     fn observe<E: Event, B2: Bundle, M>(
         self,
-        observer: impl IntoObserverSystem<E, B2, M> + Clone + Sync,
+        observer: impl IntoObserverSystem<E, B2, M> + Copy + Sync,
     ) -> Spawn<impl Bundle + Clone> {
         self.to_compose().observe(observer)
+    }
+
+    /// Adds an observer to the spawned entity. Retained observers are only added once, when the entity is first spawned.
+    fn observe_retained<E: Event, B2: Bundle, M>(
+        self,
+        observer: impl IntoObserverSystem<E, B2, M> + Copy + Sync,
+    ) -> Spawn<impl Bundle + Clone> {
+        self.to_compose().observe_retained(observer)
     }
 }
 
