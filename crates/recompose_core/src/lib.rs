@@ -374,11 +374,15 @@ fn set_states(mut setter: SetState, mut roots: Query<&mut Root>) {
                     continue;
                 };
 
+                if !matches!(new_value, StateSetterAction::SetUnchanged(_)) {
+                    state.changed = StateChanged::Queued;
+                }
+
                 state.value = match new_value {
                     StateSetterAction::Set(value) => value,
+                    StateSetterAction::SetUnchanged(value) => value,
                     StateSetterAction::Modify(f) => f(state.value.clone()),
                 };
-                state.changed = StateChanged::Queued;
             }
 
             for child in scope.children.iter_mut().rev() {

@@ -6,6 +6,7 @@ type ArcAny = Arc<dyn Any + Send + Sync>;
 
 pub(crate) enum StateSetterAction {
     Set(ArcAny),
+    SetUnchanged(ArcAny),
     Modify(Box<dyn (Fn(ArcAny) -> ArcAny) + Send + Sync>),
 }
 
@@ -24,6 +25,14 @@ impl SetState<'_> {
         self.setter
             .queued
             .insert(state.get_id(), StateSetterAction::Set(Arc::new(value)));
+    }
+
+    /// Sets the state value, but does not trigger a recompose.
+    pub fn set_unchanged<T: Send + Sync + 'static>(&mut self, state: impl GetStateId<T>, value: T) {
+        self.setter.queued.insert(
+            state.get_id(),
+            StateSetterAction::SetUnchanged(Arc::new(value)),
+        );
     }
 
     pub fn modify<T: Send + Sync + 'static>(
