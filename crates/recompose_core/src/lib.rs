@@ -416,8 +416,8 @@ fn recompose(mut roots: Query<&mut Root>) {
     }
 }
 
-#[derive(Component, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Reflect)]
-pub(crate) struct ChildOrder(pub usize);
+#[derive(Component, Clone, Copy, PartialEq, PartialOrd, Reflect)]
+pub(crate) struct ChildOrder(pub f64);
 
 fn order_children(mut commands: Commands, parents: Query<(Entity, &Parent, &ChildOrder)>) {
     let mut parent_children = HashMap::<Entity, Vec<(Entity, ChildOrder)>>::new();
@@ -434,7 +434,8 @@ fn order_children(mut commands: Commands, parents: Query<(Entity, &Parent, &Chil
     }
 
     for (parent_entity, children) in parent_children.iter_mut() {
-        children.sort_by_key(|c| c.1);
+        // We never expect to have NaN values, so we can safely unwrap here
+        children.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
         for (entity, _) in children.iter() {
             let Some(mut ec) = commands.get_entity(*entity) else {

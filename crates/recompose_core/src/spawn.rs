@@ -57,11 +57,7 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
                     }
                 };
 
-                // TODO: If `ObservedBy` was public, we could run `ec.retain::<(Parent, ObservedBy)>();` here, which
-                // would enable us to change bundle types between "recomposes". This would also require that we stored
-                // Bundle information more dynamically, which might be impossible, since Bundle is not dyn-compatible.
-                // How a about a bundle generator? `|| -> impl Bundle`?
-                ec.try_insert((ChildOrder(index), bundle.clone()));
+                ec.try_insert(bundle.clone());
 
                 let Some(parent_scope_id) = parent else {
                     return;
@@ -75,12 +71,21 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
                     .collect::<HashMap<_, _>>();
 
                 let mut parent_scope = scopes.get(&parent_scope_id);
+                // Spawn-composables are rarely the direct children of their parents, which means that the child index
+                // will likely not be correct. To find out what order the children should be in, we have to accumulate
+                // the child indices of all the ancestors.
+                let mut accumulated_child_index = index as f64;
 
                 while let Some(scope) = parent_scope {
                     if let Some(entity) = scope.get_entity() {
-                        ec.set_parent(entity);
+                        ec.set_parent(entity)
+                            .try_insert(ChildOrder(accumulated_child_index));
                         return;
                     }
+
+                    // Each time we go "deeper" into the hierarchy, the child index is less significant, so we multiply
+                    // it by 0.1. This is a bit of a hack, but it works. This will lose precision at some point.
+                    accumulated_child_index = scope.index as f64 + (accumulated_child_index * 0.1);
 
                     parent_scope = scope
                         .get_parent()
