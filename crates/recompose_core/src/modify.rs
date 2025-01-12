@@ -8,27 +8,67 @@ use bevy_ecs::{
 };
 use std::sync::Arc;
 
+// Storing observers directly would be better, but it's a little tricky, so for now we store a function that adds
+// the observer given entity commands.
+type ObserverGeneratorFn = Arc<dyn (Fn(&mut EntityCommands) -> Entity) + Send + Sync>;
+
+#[derive(Clone)]
+pub(crate) enum ObserverGenerator {
+    Temporary(ObserverGeneratorFn),
+    Retained(ObserverGeneratorFn),
+}
+
+impl ObserverGenerator {
+    fn new<E: Event, B2: Bundle, M>(
+        observer: impl IntoObserverSystem<E, B2, M> + Copy + Sync,
+    ) -> Self {
+        let f = Arc::new(move |entity: &mut EntityCommands| {
+            let target_entity = entity.id();
+            let commands = entity.commands_mut();
+            let o = Observer::new(observer).with_entity(target_entity);
+            commands.spawn(o).id()
+        });
+
+        Self::Temporary(f)
+    }
+
+    fn retained<E: Event, B2: Bundle, M>(
+        observer: impl IntoObserverSystem<E, B2, M> + Copy + Sync,
+    ) -> Self {
+        let f = Arc::new(move |entity: &mut EntityCommands| {
+            let target_entity = entity.id();
+            let commands = entity.commands_mut();
+            let o = Observer::new(observer).with_entity(target_entity);
+            commands.spawn(o).id()
+        });
+
+        Self::Retained(f)
+    }
+
+    pub fn is_retained(&self) -> bool {
+        matches!(self, Self::Retained(_))
+    }
+
+    pub fn generate(&self, entity: &mut EntityCommands) -> Entity {
+        match self {
+            Self::Temporary(f) => f(entity),
+            Self::Retained(f) => f(entity),
+        }
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct Modifier {
     pub(crate) children: Option<DynCompose>,
-    // Storing observers directly would be better, but it's a little tricky, so for now we store a function that adds
-    // the observer given entity commands.
-    // TODO: Make the inner value an enum, so its more explicit. The created `ObserverGenerator` can have a `new` or
-    // `retained` method that creates the observer, so that we don't have to have that implementation in the function.
-    // TODO: Rename to `observer_generators`
-    #[allow(clippy::type_complexity)]
-    pub(crate) observer_adders: Vec<(
-        bool,
-        Arc<dyn (Fn(&mut EntityCommands) -> Entity) + Send + Sync>,
-    )>,
+    pub(crate) observer_generators: Vec<ObserverGenerator>,
 }
 
 impl Modifier {
     /// Joins two modifiers together. Note, the the newest children will override the old children.
     pub fn join(&mut self, other: &Modifier) {
         self.children = other.children.as_ref().or(self.children.as_ref()).cloned();
-        self.observer_adders
-            .extend(other.observer_adders.iter().cloned());
+        self.observer_generators
+            .extend(other.observer_generators.iter().cloned());
     }
 }
 
@@ -70,15 +110,9 @@ pub trait Modify: Sized {
         mut self,
         observer: impl IntoObserverSystem<E, B2, M> + Copy + Sync,
     ) -> Self {
-        let f = Arc::new(move |entity: &mut EntityCommands| {
-            let target_entity = entity.id();
-            let commands = entity.commands_mut();
-            let o = Observer::new(observer).with_entity(target_entity);
-            commands.spawn(o).id()
-        });
-
+        let observer_generator = ObserverGenerator::new(observer);
         let modifier = self.modifier();
-        modifier.observer_adders.push((false, f));
+        modifier.observer_generators.push(observer_generator);
 
         self
     }
@@ -88,15 +122,9 @@ pub trait Modify: Sized {
         mut self,
         observer: impl IntoObserverSystem<E, B2, M> + Copy + Sync,
     ) -> Self {
-        let f = Arc::new(move |entity: &mut EntityCommands| {
-            let target_entity = entity.id();
-            let commands = entity.commands_mut();
-            let o = Observer::new(observer).with_entity(target_entity);
-            commands.spawn(o).id()
-        });
-
+        let observer_generator = ObserverGenerator::retained(observer);
         let modifier = self.modifier();
-        modifier.observer_adders.push((true, f));
+        modifier.observer_generators.push(observer_generator);
 
         self
     }

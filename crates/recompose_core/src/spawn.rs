@@ -44,7 +44,7 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
         };
 
         let parent = cx.get_parent();
-        let observers = self.modifier.observer_adders.clone();
+        let observer_generators = self.modifier.observer_generators.clone();
 
         cx.use_system(
             move |mut state: SetState, mut commands: Commands, roots: Query<&Root>| {
@@ -61,11 +61,11 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
                     None => {
                         let mut ec = commands.spawn_empty();
 
-                        observers
+                        observer_generators
                             .iter()
-                            .filter(|(retained, _)| *retained)
-                            .for_each(|(_, o)| {
-                                o(&mut ec);
+                            .filter(|gen| gen.is_retained())
+                            .for_each(|gen| {
+                                gen.generate(&mut ec);
                             });
 
                         state.set(&entity, Some(ec.id()));
@@ -73,10 +73,10 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
                     }
                 };
 
-                let observer_entities = observers
+                let observer_entities = observer_generators
                     .iter()
-                    .filter(|(retained, _)| !*retained)
-                    .map(|(_, o)| o(&mut ec))
+                    .filter(|gen| !gen.is_retained())
+                    .map(|gen| gen.generate(&mut ec))
                     .collect::<Vec<_>>();
 
                 state.set_unchanged(&temporary_observers, observer_entities);
