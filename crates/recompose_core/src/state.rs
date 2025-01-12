@@ -35,7 +35,7 @@ impl SetState<'_> {
         );
     }
 
-    /// Sets the state for a state with given StateId. If the state id does not exist, nothing happens.
+    /// Sets the value for a state with given StateId. If the state id does not exist, nothing happens.
     /// # Panics
     /// If the type of the value and the type of the actual state value do not match, a panic will occur later down the
     /// road.
@@ -52,6 +52,25 @@ impl SetState<'_> {
     ) {
         self.setter.queued.insert(
             state.get_id(),
+            StateSetterAction::Modify(Box::new(move |input| {
+                let input = input.downcast_ref::<T>().unwrap();
+
+                Arc::new((value_fn)(input))
+            })),
+        );
+    }
+
+    /// Modifies the value of a state with given StateId. If the state id does not exist, nothing happens.
+    /// # Panics
+    /// If the type of the value and the type of the actual state value do not match, a panic will occur later down the
+    /// road.
+    pub fn modify_with_id<T: Send + Sync + 'static>(
+        &mut self,
+        id: TypedStateId<T>,
+        value_fn: impl (Fn(&T) -> T) + Send + Sync + 'static,
+    ) {
+        self.setter.queued.insert(
+            id.get_id(),
             StateSetterAction::Modify(Box::new(move |input| {
                 let input = input.downcast_ref::<T>().unwrap();
 

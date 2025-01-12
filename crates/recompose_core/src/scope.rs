@@ -137,6 +137,25 @@ impl Scope<'_> {
         state.changed = StateChanged::Queued;
     }
 
+    pub fn set_state_with_id<T: Send + Sync + 'static>(
+        &mut self,
+        state_id: TypedStateId<T>,
+        value: T,
+    ) {
+        let state = self
+            .states
+            .iter_mut()
+            .find(|s| s.id == state_id.get_id())
+            .unwrap_or_else(|| panic!("State not found."));
+
+        if !state.value.is::<T>() {
+            panic!("State value type mismatch.");
+        }
+
+        state.value = Arc::new(value);
+        state.changed = StateChanged::Queued;
+    }
+
     pub(crate) fn get_state_by_index<T: Any + Send + Sync>(&self, index: usize) -> State<T> {
         let dyn_state = self
             .states
