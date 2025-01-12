@@ -8,6 +8,7 @@ use bevy_ecs::{
     world::{DeferredWorld, World},
 };
 use bevy_hierarchy::{BuildChildren, Parent};
+use bevy_reflect::Reflect;
 use dyn_compose::DynCompose;
 use paste::paste;
 use scope::{Scope, ScopeId};
@@ -32,19 +33,21 @@ pub struct RecomposePlugin;
 
 impl Plugin for RecomposePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<StateSetter>().add_systems(
-            PreUpdate,
-            (
-                initial_compose,
-                run_queued_systems,
-                drop_decomposed_scopes,
-                set_states,
-                recompose,
-                order_children,
-                decompose,
-            )
-                .chain(),
-        );
+        app.init_resource::<StateSetter>()
+            .register_type::<ChildOrder>()
+            .add_systems(
+                PreUpdate,
+                (
+                    initial_compose,
+                    run_queued_systems,
+                    drop_decomposed_scopes,
+                    set_states,
+                    recompose,
+                    order_children,
+                    decompose,
+                )
+                    .chain(),
+            );
     }
 }
 
@@ -413,7 +416,7 @@ fn recompose(mut roots: Query<&mut Root>) {
     }
 }
 
-#[derive(Component, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Component, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Reflect)]
 pub(crate) struct ChildOrder(pub usize);
 
 fn order_children(mut commands: Commands, parents: Query<(Entity, &Parent, &ChildOrder)>) {
