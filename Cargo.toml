@@ -15,3 +15,7 @@ recompose_core = { path = "crates/recompose_core" }
 [[example]]
 name = "basic"
 path = "examples/basic.rs"
+
+[[example]]
+name = "external_state"
+path = "examples/external_state.rs"

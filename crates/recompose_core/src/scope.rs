@@ -1,5 +1,5 @@
 use crate::{
-    state::{Dependency, DynState, State, StateId},
+    state::{Dependency, DynState, GetStateId, State, StateId, TypedStateId},
     unique_id, AnyCompose, StateChanged,
 };
 use bevy_ecs::{
@@ -83,7 +83,33 @@ impl Scope<'_> {
         let value = Arc::new(initial_value);
 
         let dyn_state = DynState {
-            id: StateId(unique_id()),
+            id: StateId::Generated(unique_id()),
+            changed: StateChanged::Changed,
+            value: value.clone(),
+        };
+
+        let state = dyn_state.to_state();
+
+        self.states.push(dyn_state);
+        self.state_index += 1;
+
+        state
+    }
+
+    pub fn use_state_with_id<T: Any + Send + Sync>(
+        &mut self,
+        state_id: TypedStateId<T>,
+        initial_value: T,
+    ) -> State<T> {
+        if let Some(existing_state) = self.states.iter().find(|s| s.id == state_id.get_id()) {
+            self.state_index += 1;
+            return existing_state.to_state::<T>();
+        }
+
+        let value = Arc::new(initial_value);
+
+        let dyn_state = DynState {
+            id: state_id.get_id(),
             changed: StateChanged::Changed,
             value: value.clone(),
         };

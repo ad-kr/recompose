@@ -3,6 +3,7 @@ name = "recompose_core"
 version = "0.1.0"
 edition = "2021"
 
+# TODO: These all should have default features turned off
 [dependencies]
 bevy_app = "0.15.0"
 bevy_ui = "0.15.0"
@@ -10,5 +11,6 @@ bevy_ecs = "0.15.0"
 bevy_hierarchy = "0.15.0"
 bevy_color = "0.15.0"
 bevy_reflect_derive = "0.15.0"
+bevy_picking = "0.15.0"
 bevy_reflect = "0.15.0"
 paste = "1.0.15"

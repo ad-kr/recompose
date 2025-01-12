@@ -1,7 +1,7 @@
 use crate::{
     dyn_compose::DynCompose,
     keyed::Keyed,
-    state::{GetStateId, SetState, StateRef},
+    state::{GetStateId, SetState, TypedStateId},
     Compose,
 };
 use bevy_ecs::{
@@ -137,17 +137,13 @@ pub trait Modify: Sized {
 
     /// Binds the given `State<bool>` or `StateRef<bool>` to the hovered state of the entity.
     fn bind_hover(self, hover_state: impl GetStateId<bool>) -> Self {
-        // Workaround for the sending the state to the observer without cloning or copying it.
-        let state_ref = StateRef {
-            id: hover_state.get_id(),
-            value: false,
-        };
+        let typed_state_id = TypedStateId::from_state_id(hover_state.get_id());
 
         self.observe_retained(move |_: Trigger<Pointer<Over>>, mut state: SetState| {
-            state.set(state_ref, true)
+            state.set(typed_state_id, true)
         })
         .observe_retained(move |_: Trigger<Pointer<Out>>, mut state: SetState| {
-            state.set(state_ref, false)
+            state.set(typed_state_id, false)
         })
     }
 }

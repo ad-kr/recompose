@@ -370,15 +370,15 @@ fn set_states(mut setter: SetState, mut roots: Query<&mut Root>) {
 
         while let Some(scope) = scopes.pop_front() {
             for state in scope.states.iter_mut() {
-                let Some(new_value) = setter.setter.queued.remove(&state.id) else {
+                let Some(state_setter_action) = setter.setter.queued.remove(&state.id) else {
                     continue;
                 };
 
-                if !matches!(new_value, StateSetterAction::SetUnchanged(_)) {
+                if !matches!(state_setter_action, StateSetterAction::SetUnchanged(_)) {
                     state.changed = StateChanged::Queued;
                 }
 
-                state.value = match new_value {
+                state.value = match state_setter_action {
                     StateSetterAction::Set(value) => value,
                     StateSetterAction::SetUnchanged(value) => value,
                     StateSetterAction::Modify(f) => f(state.value.clone()),

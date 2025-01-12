@@ -1,6 +1,6 @@
 use bevy_ecs::system::{ResMut, Resource, SystemParam};
 use paste::paste;
-use std::{any::Any, collections::HashMap, ops::Deref, sync::Arc};
+use std::{any::Any, collections::HashMap, marker::PhantomData, ops::Deref, sync::Arc};
 
 type ArcAny = Arc<dyn Any + Send + Sync>;
 
@@ -35,6 +35,16 @@ impl SetState<'_> {
         );
     }
 
+    /// Sets the state for a state with given StateId. If the state id does not exist, nothing happens.
+    /// # Panics
+    /// If the type of the value and the type of the actual state value do not match, a panic will occur later down the
+    /// road.
+    pub fn set_with_id<T: Send + Sync + 'static>(&mut self, id: TypedStateId<T>, value: T) {
+        self.setter
+            .queued
+            .insert(id.get_id(), StateSetterAction::Set(Arc::new(value)));
+    }
+
     pub fn modify<T: Send + Sync + 'static>(
         &mut self,
         state: impl GetStateId<T>,
@@ -51,8 +61,11 @@ impl SetState<'_> {
     }
 }
 
-#[derive(Default, Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct StateId(pub(crate) usize);
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum StateId {
+    Generated(usize),
+    Manual(usize),
+}
 
 #[derive(Clone, Copy)]
 pub enum StateChanged {
@@ -119,24 +132,53 @@ impl<T> Deref for StateRef<T> {
     }
 }
 
+/// A StateId with a type marker. This is useful for ensuring that the correct type is used when getting a state.
+#[derive(Clone, Copy)]
+pub struct TypedStateId<T> {
+    id: StateId,
+    _marker: PhantomData<T>,
+}
+
+impl<T> TypedStateId<T> {
+    pub const fn new(id: usize) -> Self {
+        Self {
+            id: StateId::Manual(id),
+            _marker: PhantomData,
+        }
+    }
+
+    pub(crate) fn from_state_id(id: StateId) -> Self {
+        Self {
+            id,
+            _marker: PhantomData,
+        }
+    }
+}
+
 pub trait GetStateId<T> {
-    fn get_id(self) -> StateId;
+    fn get_id(&self) -> StateId;
 }
 
 impl<T> GetStateId<T> for State<T> {
-    fn get_id(self) -> StateId {
+    fn get_id(&self) -> StateId {
         self.id
     }
 }
 
 impl<T> GetStateId<T> for &State<T> {
-    fn get_id(self) -> StateId {
+    fn get_id(&self) -> StateId {
         self.id
     }
 }
 
 impl<T> GetStateId<T> for StateRef<T> {
-    fn get_id(self) -> StateId {
+    fn get_id(&self) -> StateId {
+        self.id
+    }
+}
+
+impl<T> GetStateId<T> for TypedStateId<T> {
+    fn get_id(&self) -> StateId {
         self.id
     }
 }
