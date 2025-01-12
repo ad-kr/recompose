@@ -111,7 +111,7 @@ impl Scope<'_> {
         state.changed = StateChanged::Queued;
     }
 
-    pub fn get_state_by_index<T: Any + Send + Sync>(&self, index: usize) -> State<T> {
+    pub(crate) fn get_state_by_index<T: Any + Send + Sync>(&self, index: usize) -> State<T> {
         let dyn_state = self
             .states
             .get(index)
