@@ -158,11 +158,18 @@ impl<T> Deref for StateRef<T> {
 }
 
 /// A StateId with a type marker. This is useful for ensuring that the correct type is used when getting a state.
-#[derive(Clone, Copy)]
 pub struct TypedStateId<T> {
     id: StateId,
     _marker: PhantomData<T>,
 }
+
+impl<T> Clone for TypedStateId<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for TypedStateId<T> {}
 
 impl<T> TypedStateId<T> {
     pub const fn new(id: usize) -> Self {
