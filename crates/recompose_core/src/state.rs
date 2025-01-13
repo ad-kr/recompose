@@ -137,6 +137,12 @@ impl<T: Copy> State<T> {
     }
 }
 
+impl<T> State<T> {
+    pub fn get_typed_id(&self) -> TypedStateId<T> {
+        TypedStateId::from_state_id(self.id)
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct StateRef<T> {
     pub(crate) id: StateId,
