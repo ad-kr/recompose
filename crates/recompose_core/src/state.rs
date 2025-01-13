@@ -21,6 +21,7 @@ pub struct SetState<'w> {
 }
 
 impl SetState<'_> {
+    /// Sets the state value.
     pub fn set<T: Send + Sync + 'static>(&mut self, state: impl GetStateId<T>, value: T) {
         self.setter
             .queued
@@ -36,9 +37,6 @@ impl SetState<'_> {
     }
 
     /// Sets the value for a state with given StateId. If the state id does not exist, nothing happens.
-    /// # Panics
-    /// If the type of the value and the type of the actual state value do not match, a panic will occur later down the
-    /// road.
     pub fn set_with_id<T: Send + Sync + 'static>(&mut self, id: TypedStateId<T>, value: T) {
         self.setter
             .queued
@@ -61,9 +59,6 @@ impl SetState<'_> {
     }
 
     /// Modifies the value of a state with given StateId. If the state id does not exist, nothing happens.
-    /// # Panics
-    /// If the type of the value and the type of the actual state value do not match, a panic will occur later down the
-    /// road.
     pub fn modify_with_id<T: Send + Sync + 'static>(
         &mut self,
         id: TypedStateId<T>,
