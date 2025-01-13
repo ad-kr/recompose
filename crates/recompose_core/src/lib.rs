@@ -111,7 +111,6 @@ impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
 
         let mut new_scope_ids = (*scope_ids).clone();
 
-        // TODO: Add check for when key values are duplicated
         for (index, key_compose) in self.iter().enumerate() {
             let key = key_compose.key();
             let scope_id = scope_ids.get(&key);
