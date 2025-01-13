@@ -17,6 +17,10 @@ name = "basic"
 path = "examples/basic.rs"
 
 [[example]]
+name = "counter"
+path = "examples/counter.rs"
+
+[[example]]
 name = "todo"
 path = "examples/todo.rs"
 
