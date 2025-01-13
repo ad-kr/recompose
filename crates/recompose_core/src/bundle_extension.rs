@@ -1,53 +1,62 @@
 use crate::{
-    dyn_compose::DynCompose, keyed::Keyed, modify::Modify, spawn::Spawn, state::GetStateId, Compose,
+    dyn_compose::DynCompose,
+    keyed::Keyed,
+    modify::{Modifier, ModifyFunctions},
+    spawn::Spawn,
+    state::GetStateId,
+    Compose,
 };
 use bevy_ecs::{bundle::Bundle, event::Event, system::IntoObserverSystem};
+use std::marker::PhantomData;
 
-// This is basically mirroring the `Modify` trait. It would be great to unify those two, but it's tricky since that
-// would require a separate trait, that is implemented for both the `Modify` and `Bundle` trait, which is impossible.
-pub trait BundleExtension: Sized {
+/// Trait that allows for easier conversion of `Bundle` into `Spawn`.
+pub trait BundleExtension<B: Bundle + Clone>: Sized {
     /// Converts this `Bundle` into a `Spawn`.
-    fn to_compose(self) -> Spawn<impl Bundle + Clone>;
+    fn to_compose(self) -> Spawn<B>;
+}
 
-    /// Sets the children of the spawned entity.
-    fn children(self, children: impl Compose + 'static) -> Spawn<impl Bundle + Clone> {
+// The generic on the ModfiyFunctions trait doesn't do anything, and is here just not to have conflicting trait
+// implementations for `BundleExtension` and `Modify`. Hacky but it works.
+impl<B: Bundle + Clone, BE: BundleExtension<B>> ModifyFunctions<PhantomData<B>> for BE {
+    type Target = Spawn<B>;
+
+    fn children(self, children: impl Compose + 'static) -> Spawn<B> {
         self.to_compose().children(children)
     }
 
-    /// Converts this `Compose` into `DynCompose`.
     fn to_dyn(self) -> DynCompose {
         self.to_compose().to_dyn()
     }
 
-    /// Wraps this `Compose` in a `Keyed` compose.
     fn keyed(self, key: usize) -> Keyed {
         self.to_compose().keyed(key)
     }
 
-    /// Adds an observer to the spawned entity. Observers are only added once, when the entity is first spawned.
     fn observe<E: Event, B2: Bundle, M>(
         self,
-        observer: impl IntoObserverSystem<E, B2, M> + Copy + Sync,
-    ) -> Spawn<impl Bundle + Clone> {
+        observer: impl IntoObserverSystem<E, B2, M> + Clone + Sync,
+    ) -> Spawn<B> {
         self.to_compose().observe(observer)
     }
 
-    /// Adds an observer to the spawned entity. Retained observers are only added once, when the entity is first spawned.
     fn observe_retained<E: Event, B2: Bundle, M>(
         self,
-        observer: impl IntoObserverSystem<E, B2, M> + Copy + Sync,
-    ) -> Spawn<impl Bundle + Clone> {
+        observer: impl IntoObserverSystem<E, B2, M> + Clone + Sync,
+    ) -> Spawn<B> {
         self.to_compose().observe_retained(observer)
     }
 
-    /// Binds the given `State<bool>` or `StateRef<bool>` to the hovered state of the entity.
-    fn bind_hover(self, hover_state: impl GetStateId<bool>) -> Spawn<impl Bundle + Clone> {
+    fn bind_hover(self, hover_state: impl GetStateId<bool>) -> Spawn<B> {
         self.to_compose().bind_hover(hover_state)
+    }
+
+    fn use_modifier(self, modifier: &Modifier) -> Self::Target {
+        self.to_compose().use_modifier(modifier)
     }
 }
 
-impl<B: Bundle + Clone> BundleExtension for B {
-    fn to_compose(self) -> Spawn<impl Bundle + Clone> {
+impl<B: Bundle + Clone> BundleExtension<B> for B {
+    fn to_compose(self) -> Spawn<B> {
         Spawn::new(self)
     }
 }

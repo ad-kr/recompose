@@ -121,38 +121,36 @@ impl Modifier {
 /// observers to the entity. See the [`Modifier`](Modifier) struct for more information.
 pub trait Modify: Sized {
     fn modifier(&mut self) -> &mut Modifier;
+}
 
-    // Uses given modifier
+impl<T: Modify + Compose> ModifyFunctions<T> for T {
+    type Target = T;
+
     fn use_modifier(mut self, modifier: &Modifier) -> Self {
         self.modifier().join(modifier);
         self
     }
 
-    /// Sets the children of the spawned entity.
     fn children(mut self, children: impl Compose + 'static) -> Self {
         let modifier = self.modifier();
         modifier.children = Some(DynCompose::new(children));
         self
     }
 
-    /// Converts this `Compose` into `DynCompose`.
     fn to_dyn(self) -> DynCompose
     where
-        Self: Compose + 'static,
+        Self: 'static,
     {
         DynCompose::new(self)
     }
 
-    /// Wraps this `Compose` in a `Keyed` compose.
     fn keyed(self, key: usize) -> Keyed
     where
-        Self: Compose + 'static,
+        Self: 'static,
     {
         Keyed::new(key, self)
     }
 
-    /// Adds an observer to the spawned entity. Observers are created and removed each time the composable recomposes.
-    /// If you want to retain the observer, use the [`observe_retained`](Modify::observe_retained) function.
     fn observe<E: Event, B2: Bundle, M>(
         mut self,
         observer: impl IntoObserverSystem<E, B2, M> + Clone + Sync,
@@ -164,7 +162,6 @@ pub trait Modify: Sized {
         self
     }
 
-    /// Adds an observer to the spawned entity. Retained observers are only added once, when the entity is first spawned.
     fn observe_retained<E: Event, B2: Bundle, M>(
         mut self,
         observer: impl IntoObserverSystem<E, B2, M> + Clone + Sync,
@@ -176,7 +173,6 @@ pub trait Modify: Sized {
         self
     }
 
-    /// Binds the given `State<bool>` or `StateRef<bool>` to the hovered state of the entity.
     fn bind_hover(self, hover_state: impl GetStateId<bool>) -> Self {
         let typed_state_id = TypedStateId::from_state_id(hover_state.get_id());
 
@@ -187,4 +183,45 @@ pub trait Modify: Sized {
             state.set(typed_state_id, false)
         })
     }
+}
+
+/// The `ModifyFunctions` trait provides a template for the functions of the [`Modify`](Modify) trait. The reason why
+/// it is split from the actual `Modify` trait is that [`BundleExtension`](crate::bundle_extension::BundleExtension)
+/// also implements it.
+///
+// The generic on the ModfiyFunctions trait doesn't do anything, and is here just not to have conflicting trait
+// implementations for `BundleExtension` and `Modify`. Hacky but it works.
+pub trait ModifyFunctions<T>: Sized {
+    type Target: Compose;
+    // Uses given modifier
+    fn use_modifier(self, modifier: &Modifier) -> Self::Target;
+
+    /// Sets the children of the spawned entity.
+    fn children(self, children: impl Compose + 'static) -> Self::Target;
+
+    /// Converts this `Compose` into `DynCompose`.
+    fn to_dyn(self) -> DynCompose
+    where
+        Self::Target: 'static;
+
+    /// Wraps this `Compose` in a `Keyed` compose.
+    fn keyed(self, key: usize) -> Keyed
+    where
+        Self::Target: 'static;
+
+    /// Adds an observer to the spawned entity. Observers are created and removed each time the composable recomposes.
+    /// If you want to retain the observer, use the [`observe_retained`](Modify::observe_retained) function.
+    fn observe<E: Event, B2: Bundle, M>(
+        self,
+        observer: impl IntoObserverSystem<E, B2, M> + Clone + Sync,
+    ) -> Self::Target;
+
+    /// Adds an observer to the spawned entity. Retained observers are only added once, when the entity is first spawned.
+    fn observe_retained<E: Event, B2: Bundle, M>(
+        self,
+        observer: impl IntoObserverSystem<E, B2, M> + Clone + Sync,
+    ) -> Self::Target;
+
+    /// Binds the given `State<bool>` or `StateRef<bool>` to the hovered state of the entity.
+    fn bind_hover(self, hover_state: impl GetStateId<bool>) -> Self::Target;
 }
