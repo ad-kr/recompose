@@ -17,5 +17,9 @@ name = "basic"
 path = "examples/basic.rs"
 
 [[example]]
+name = "todo"
+path = "examples/todo.rs"
+
+[[example]]
 name = "external_state"
 path = "examples/external_state.rs"
