@@ -63,6 +63,45 @@ impl ObserverGenerator {
     }
 }
 
+/// Modifiers hold information about children and observers. Used together with the [`Modify`](Modify) trait they enable
+/// a compoosable to add ECS children and observers to the spawned entity.
+///
+/// We can forward the modifier to the underlying [`Spawn`](crate::spawn::Spawn) by using the [`use_modifier`](Modify::use_modifier)
+/// function.
+///
+/// # Example
+/// ```
+/// fn compose(cx: &mut Scope) -> impl Compose {
+///    Button {
+///       label: "Click me".to_string(),
+///       modifier: Modifier::default()
+///    }
+///    .observe(move |_: Trigger<Pointer<Click>>| {
+///        println!("Button clicked!");
+///    });
+///
+/// }
+///
+/// #[derive(Clone)]
+/// struct Button {
+///     label: String
+///     modifier: Modifier,
+/// }
+///
+/// impl Modify for Button {
+///    fn modifier(&mut self) -> &mut Modifier {
+///       &mut self.modifier
+///   }
+/// }
+///
+/// impl Compose for Button {
+///    fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
+///       Text::new(self.label.clone())
+///           .to_compose()
+///           .use_modifier(&self.modifier)
+///    }
+/// }
+/// ```
 #[derive(Clone, Default)]
 pub struct Modifier {
     pub(crate) children: Option<DynCompose>,
@@ -78,6 +117,8 @@ impl Modifier {
     }
 }
 
+/// The `Modify` trait is used to modify entities before they are spawned or recomposed. It is used to add children and
+/// observers to the entity. See the [`Modifier`](Modifier) struct for more information.
 pub trait Modify: Sized {
     fn modifier(&mut self) -> &mut Modifier;
 
