@@ -14,7 +14,6 @@ fn setup(mut commands: Commands) {
     commands.spawn((Root::new(counter), Node::default()));
 }
 
-// Fn(&mut Scope) -> impl Compose implements Compose, so we can use for simple composables.
 fn counter(cx: &mut Scope) -> impl Compose {
     let count = cx.use_state(0);
 
