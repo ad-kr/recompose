@@ -10,6 +10,9 @@ use bevy_ecs::{
 use bevy_hierarchy::{BuildChildren, DespawnRecursiveExt};
 use std::{collections::HashMap, sync::Arc};
 
+/// A composable that takes in a bundle and spawns an entity with the bundle. When the composable is recomposed, the
+/// bundle, children and observers are updated. When the composable is "decomposed", the entity is despawned from the
+/// world.
 #[derive(Clone)]
 pub struct Spawn<B: Bundle + Clone> {
     pub(crate) bundle_generator: Arc<dyn (Fn() -> B) + Send + Sync>,
