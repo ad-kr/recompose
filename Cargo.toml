@@ -27,3 +27,7 @@ path = "examples/todo.rs"
 [[example]]
 name = "external_state"
 path = "examples/external_state.rs"
+
+[[example]]
+name = "dynamic_composables"
+path = "examples/dynamic_composables.rs"
