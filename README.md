@@ -129,14 +129,16 @@ scope's state changes, or when the parent composable "recomposes".
   [`ModfiyFunctions`](prelude::ModifyFunctions)-trait which lets us use functions like
   [`children`](prelude::ModifyFunctions::children), [`observe`](prelude::ModifyFunctions::observe).
 
+# Compatibility with Bevy
+
+| Bevy | recompose |
+| ---- | --------- |
+| 0.15 | 0.1       |
+
 # Motivation
 
 Recompose is heavily inspired by the [actuate](https://docs.rs/actuate/) crate, which also provides a declarative
 way to construct ECS structures. This crate strives to be more robust, safer and less error-prone than `actuate`.
 
-The goal of `recompose` is not to be the most performant solution, but rather one that is easy to use, easy to
-understand and most importantly works.
-
-# Compatibility
-
-TODO:
+The goal of `recompose` is not necessarily to be the most performant solution, but rather one that is easy to use
+and easy to understand.
