@@ -193,7 +193,7 @@ impl Scope<'_> {
     }
 
     /// A callback that is run only if the dependencies have changed.
-    pub fn use_effect(&mut self, effect: impl Fn(), dependecies: impl Dependency) {
+    pub fn effect(&mut self, effect: impl Fn(), dependecies: impl Dependency) {
         if !dependecies.has_changed() {
             return;
         }
@@ -204,7 +204,7 @@ impl Scope<'_> {
     /// Runs a callback when the component is first composed.
     pub fn use_mount(&mut self, callback: impl Fn()) {
         let once = self.use_state(());
-        self.use_effect(callback, once);
+        self.effect(callback, once);
     }
 
     /// Runs a system. The system is not cached and is "rebuilt" every time the composable recomposes. It is therefore
