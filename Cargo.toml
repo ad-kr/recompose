@@ -16,7 +16,7 @@ members = ["crates/*"]
 bevy = "0.15.0"
 
 [dependencies]
-recompose_core = { path = "crates/recompose_core" }
+recompose_core = { version = "0.1.0", path = "crates/recompose_core" }
 
 [[example]]
 name = "basic"
