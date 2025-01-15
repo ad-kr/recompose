@@ -1,7 +1,12 @@
 [package]
 name = "recompose_core"
+description = "Core crate of the `recompose` crate"
 version = "0.1.0"
 edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ad-kr/recompose"
+keywords = ["bevy", "ui", "declarative"]
+categories = ["game-development"]
 
 [dependencies]
 bevy_app = { version = "0.15.0", default-features = false }
