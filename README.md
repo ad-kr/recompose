@@ -1,3 +1,5 @@
+# recompose
+
 `recompose` is a library for [Bevy](https://docs.rs/bevy/) that provides a declarative way to compose structures in
 a way that is easy to write, and is ECS- and borrow-checker friendly.
 
