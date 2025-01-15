@@ -3361,13 +3361,11 @@ name = "recompose_core"
 version = "0.1.0"
 dependencies = [
  "bevy_app",
- "bevy_color",
  "bevy_ecs",
  "bevy_hierarchy",
  "bevy_picking",
  "bevy_reflect",
  "bevy_reflect_derive",
- "bevy_ui",
  "paste",
 ]
 

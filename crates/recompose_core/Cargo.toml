@@ -5,12 +5,11 @@ edition = "2021"
 
 # TODO: These all should have default features turned off
 [dependencies]
-bevy_app = "0.15.0"
-bevy_ui = "0.15.0"
-bevy_ecs = "0.15.0"
-bevy_hierarchy = "0.15.0"
-bevy_color = "0.15.0"
-bevy_reflect_derive = "0.15.0"
-bevy_picking = "0.15.0"
-bevy_reflect = "0.15.0"
+bevy_app = { version = "0.15.0", default-features = false }
+bevy_ecs = { version = "0.15.0", default-features = false }
+bevy_hierarchy = { version = "0.15.0", default-features = false }
+bevy_reflect_derive = { version = "0.15.0", default-features = false }
+bevy_picking = { version = "0.15.0", default-features = false }
+bevy_reflect = { version = "0.15.0", default-features = false }
+
 paste = "1.0.15"
