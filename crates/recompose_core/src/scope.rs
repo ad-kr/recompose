@@ -209,7 +209,7 @@ impl Scope<'_> {
 
     /// Runs a system. The system is not cached and is "rebuilt" every time the composable recomposes. It is therefore
     /// not the most efficient way to to interact with the ECS world.
-    pub fn use_system<M>(&mut self, system: impl IntoSystem<(), (), M>) {
+    pub fn run_system<M>(&mut self, system: impl IntoSystem<(), (), M>) {
         let sys: BoxedSystem<(), ()> = Box::from(IntoSystem::into_system(system));
         self.queued_systems.push(sys);
     }
@@ -219,7 +219,7 @@ impl Scope<'_> {
         let once = self.use_state(());
 
         if matches!(once.changed, StateChanged::Changed) {
-            self.use_system(system);
+            self.run_system(system);
         }
     }
 

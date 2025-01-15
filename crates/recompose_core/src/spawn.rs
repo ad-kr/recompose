@@ -49,7 +49,7 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
         let parent = cx.get_parent();
         let observer_generators = self.modifier.observer_generators.clone();
 
-        cx.use_system(
+        cx.run_system(
             move |mut state: SetState, mut commands: Commands, roots: Query<&Root>| {
                 for observer_entity in temporary_observers.iter() {
                     let Some(observer_ec) = commands.get_entity(*observer_entity) else {

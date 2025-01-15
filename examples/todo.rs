@@ -218,7 +218,7 @@ impl Compose for InputField {
         let input_ref = self.input_ref;
 
         if *is_focused {
-            cx.use_system(
+            cx.run_system(
                 move |mut key_events: EventReader<KeyboardInput>,
                       just_pressed: Res<ButtonInput<KeyCode>>,
                       mut state: SetState,
