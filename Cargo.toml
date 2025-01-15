@@ -1,7 +1,13 @@
 [package]
 name = "recompose"
+description = "Declarative framework for the Bevy game engine"
 version = "0.1.0"
 edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ad-kr/recompose"
+readme = "README.md"
+keywords = ["bevy", "ui", "declarative"]
+categories = ["game-development"]
 
 [workspace]
 members = ["crates/*"]
