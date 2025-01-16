@@ -72,7 +72,10 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
                             });
 
                         state.set(&entity, Some(ec.id()));
-                        ec
+                        // TODO: Right now, we're skipping spawning of the rest of the bundle until the next frame to
+                        // prevent "flickering". If we implemented a way to run system immediately, we could simplify
+                        // this composable a lot.
+                        return;
                     }
                 };
 
