@@ -104,28 +104,28 @@ impl<C: Compose + 'static, F: (Fn(&mut Scope) -> C) + Send + Sync> Compose for F
     }
 }
 
-// TODO: This implementation works, but can be massively improved.
 impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
     fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
         let scope_ids = cx.use_state(HashMap::<usize, ScopeId>::new());
 
-        let mut new_scope_ids = (*scope_ids).clone();
+        let mut modified_scope_ids = (*scope_ids).clone();
+
+        let keys = self.iter().map(|k| k.key()).collect::<Vec<_>>();
+
+        let mut unique_keys = HashSet::new();
+        let duplicate_key = keys.iter().find(|key| !unique_keys.insert(*key));
+
+        if let Some(duplicate_key) = duplicate_key {
+            panic!("Duplicate key found: {:?}", duplicate_key);
+        }
 
         for (index, key_compose) in self.iter().enumerate() {
             let key = key_compose.key();
             let scope_id = scope_ids.get(&key);
+            let scope =
+                scope_id.and_then(|scope_id| cx.children.iter_mut().find(|s| s.id == *scope_id));
 
-            if let Some(scope_id) = scope_id {
-                let scope = cx
-                    .children
-                    .iter_mut()
-                    .find(|s| s.id == *scope_id)
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "Scope with id {:?} was expected to be found, but was not.",
-                            scope_id
-                        )
-                    });
+            if let Some(scope) = scope {
                 scope.index = index;
                 scope.composer = Arc::new(key_compose.clone());
                 scope.composer.clone().recompose_scope(scope);
@@ -134,63 +134,27 @@ impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
 
             let compose = Arc::new(key_compose.clone());
             let mut scope = Scope::new(compose, cx.id, index);
-            let scope_id = scope.id;
-            scope.composer.clone().recompose_scope(&mut scope);
+            key_compose.recompose_scope(&mut scope);
 
+            modified_scope_ids.insert(key, scope.id);
             cx.children.push(scope);
-
-            new_scope_ids.insert(key, scope_id);
         }
 
-        // TODO: We can probably further modfiy this value, and then just set it at the end, instead of doing it multiple times in the next loops
-        if new_scope_ids != *scope_ids {
-            cx.set_state(&scope_ids, new_scope_ids);
-        }
-
-        let keys = self.iter().map(|k| k.key()).collect::<Vec<_>>();
-
-        let mut unique_keys = HashSet::new();
-        for key in keys.iter() {
-            let is_unique = unique_keys.insert(key);
-
-            if !is_unique {
-                panic!("Duplicate key found: {:?}", key);
-            }
-        }
-
-        // TODO: Is there a better way to order the scopes? Or just ensure that they are always in the right order?
-        cx.children.sort_by_key(|scope| {
-            let scope_id = scope.id;
-            let Some((key, _)) = scope_ids.iter().find(|(_, &id)| id == scope_id) else {
-                return usize::MAX;
-            };
-
-            keys.iter().position(|k| k == key).unwrap_or(usize::MAX)
-        });
-
-        for (key, scope_id) in scope_ids.iter() {
+        for (key, scope_id) in modified_scope_ids.clone().iter() {
             if keys.contains(key) {
                 continue;
             }
 
-            let scope = cx
-                .children
-                .iter_mut()
-                .find(|s| s.id == *scope_id)
-                .unwrap_or_else(|| {
-                    panic!(
-                        "Scope with id {:?} was expected to be found, but was not.",
-                        scope_id
-                    )
-                });
+            modified_scope_ids.remove(key);
+
+            let Some(scope) = cx.children.iter_mut().find(|scope| scope.id == *scope_id) else {
+                continue;
+            };
 
             scope.will_decompose = true;
-
-            let mut new_scope_ids = (*scope_ids).clone();
-            new_scope_ids.remove(key);
-
-            cx.set_state(&scope_ids, new_scope_ids);
         }
+
+        cx.set_state(&scope_ids, modified_scope_ids);
     }
 
     fn ignore_children(&self) -> bool {

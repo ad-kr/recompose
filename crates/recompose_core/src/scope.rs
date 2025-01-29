@@ -17,7 +17,8 @@ pub struct ScopeId(usize);
 pub struct Scope<'a> {
     pub(crate) id: ScopeId,
 
-    /// Indicates which index in the parent's children vector this scope is.
+    /// Indicates the index of the scope when it was "recomposed". It is not necessarily the same as the index in the
+    /// parent's children vector.
     pub(crate) index: usize,
 
     /// For composables that spawn an entity, this is the field that holds the rerefence to the entity.
