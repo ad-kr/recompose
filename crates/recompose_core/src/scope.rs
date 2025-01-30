@@ -164,6 +164,21 @@ impl Scope<'_> {
         state.changed = StateChanged::Queued;
     }
 
+    /// Sets the value of the given state without triggering a recomposition. The change happens immediately.
+    pub fn set_state_unchanged<T: Send + Sync + 'static>(&mut self, state: &State<T>, value: T) {
+        let state = self
+            .states
+            .iter_mut()
+            .find(|s| s.id == state.id)
+            .unwrap_or_else(|| panic!("State not found."));
+
+        if !state.value.is::<T>() {
+            panic!("State value type mismatch.");
+        }
+
+        state.value = Arc::new(value);
+    }
+
     /// Sets the value of a state with a given id. The change happens immediately.
     pub fn set_state_with_id<T: Send + Sync + 'static>(
         &mut self,
