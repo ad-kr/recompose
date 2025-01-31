@@ -79,6 +79,11 @@ pub trait Compose: Send + Sync {
     fn ignore_children(&self) -> bool {
         false
     }
+
+    /// Returns the name of the composable. This is mostly intended for debugging purposes.
+    fn name(&self) -> String {
+        String::from("AnonymousCompose")
+    }
 }
 
 impl Compose for () {
@@ -86,6 +91,10 @@ impl Compose for () {
 
     fn ignore_children(&self) -> bool {
         true
+    }
+
+    fn name(&self) -> String {
+        String::from("EmptyCompose")
     }
 }
 
@@ -96,11 +105,22 @@ impl<C: Compose + Clone + 'static> Compose for Option<C> {
             None => DynCompose::new(()),
         }
     }
+
+    fn name(&self) -> String {
+        match self {
+            Some(inner) => format!("Some({})", inner.name()),
+            None => String::from("None"),
+        }
+    }
 }
 
 impl<C: Compose + 'static, F: (Fn(&mut Scope) -> C) + Send + Sync> Compose for F {
     fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
         self(cx)
+    }
+
+    fn name(&self) -> String {
+        String::from("ClosureCompose")
     }
 }
 
@@ -132,8 +152,9 @@ impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
                 continue;
             }
 
+            let compose_name = key_compose.name();
             let compose = Arc::new(key_compose.clone());
-            let mut scope = Scope::new(compose, cx.id, index);
+            let mut scope = Scope::new(compose, index, compose_name);
             key_compose.recompose_scope(&mut scope);
 
             modified_scope_ids.insert(key, scope.id);
@@ -160,6 +181,10 @@ impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
     fn ignore_children(&self) -> bool {
         true
     }
+
+    fn name(&self) -> String {
+        String::from("VecCompose")
+    }
 }
 
 macro_rules! impl_compose_for_tuple {
@@ -176,7 +201,8 @@ macro_rules! impl_compose_for_tuple {
                                 .recompose_scope(existing_scope);
                         } else {
                             let compose = Arc::new(self.$c.clone());
-                            let mut scope = Scope::new(compose, cx.id, $c);
+                            let compose_name = compose.name();
+                            let mut scope = Scope::new(compose, $c, compose_name);
                             self.$c.recompose_scope(&mut scope);
                             cx.children.push(scope);
                         }
@@ -185,6 +211,10 @@ macro_rules! impl_compose_for_tuple {
 
                 fn ignore_children(&self) -> bool {
                     true
+                }
+
+                fn name(&self) -> String {
+                    String::from("TupleCompose")
                 }
             }
         }
@@ -219,6 +249,9 @@ pub trait AnyCompose: Send + Sync {
 
     /// This function decomposes the scope. Usually this calls the `decompose` function on the `Compose` trait directly.
     fn decompose_scope(&self, scope: &mut Scope);
+
+    /// Returns the name of the composable. This is mostly intended for debugging purposes.
+    fn get_name(&self) -> String;
 }
 
 impl<C: Compose> AnyCompose for C {
@@ -251,7 +284,8 @@ impl<C: Compose> AnyCompose for C {
         };
 
         let child_compose = Arc::new(child);
-        let mut child_scope = Scope::new(child_compose.clone(), scope.id, 0);
+        let compose_name = child_compose.name();
+        let mut child_scope = Scope::new(child_compose.clone(), 0, compose_name);
 
         child_compose.recompose_scope(&mut child_scope);
 
@@ -261,6 +295,10 @@ impl<C: Compose> AnyCompose for C {
     fn decompose_scope(&self, scope: &mut Scope) {
         self.decompose(scope);
     }
+
+    fn get_name(&self) -> String {
+        self.name()
+    }
 }
 
 // ===
@@ -269,7 +307,7 @@ impl<C: Compose> AnyCompose for C {
 
 fn initial_compose(mut roots: Query<(Entity, &mut Root), Added<Root>>) {
     for (entity, mut root) in roots.iter_mut() {
-        let mut scope = Scope::as_root_scope(entity, root.compose.clone());
+        let mut scope = Scope::as_root_scope(entity, root.compose.clone(), root.compose.get_name());
 
         root.compose.recompose_scope(&mut scope);
 

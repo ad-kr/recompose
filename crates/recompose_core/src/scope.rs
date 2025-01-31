@@ -6,7 +6,11 @@ use bevy_ecs::{
     entity::Entity,
     system::{BoxedSystem, IntoSystem},
 };
-use std::{any::Any, collections::HashMap, sync::Arc};
+use std::{
+    any::Any,
+    fmt::{Debug, Display},
+    sync::Arc,
+};
 
 #[derive(Default, Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct ScopeId(usize);
@@ -16,6 +20,9 @@ pub struct ScopeId(usize);
 /// "actual" node in the tree-structure of the composables.
 pub struct Scope<'a> {
     pub(crate) id: ScopeId,
+
+    /// The name of the composable. It is used for debugging purposes.
+    pub(crate) name: String,
 
     /// Indicates the index of the scope when it was "recomposed". It is not necessarily the same as the index in the
     /// parent's children vector.
@@ -48,27 +55,43 @@ pub struct Scope<'a> {
     pub(crate) queued_systems: Vec<BoxedSystem<(), ()>>,
 }
 
-impl Default for Scope<'_> {
-    fn default() -> Self {
-        Self {
-            id: ScopeId(unique_id()),
-            index: Default::default(),
-            entity: None,
-            parent: None,
-            will_decompose: false,
-            composer: Arc::new(()),
-            state_index: Default::default(),
-            states: Default::default(),
-            children: Default::default(),
-            queued_systems: Default::default(),
-        }
+impl Debug for Scope<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmt_scope_with_indents(self, f, 0)
+    }
+}
+
+fn fmt_scope_with_indents(
+    scope: &Scope,
+    f: &mut std::fmt::Formatter,
+    level: usize,
+) -> std::fmt::Result {
+    let indents = "  ".repeat(level);
+
+    if scope.children.is_empty() {
+        return writeln!(f, "{}<{} id={{{}}}/>", indents, scope.name, scope.id.0);
+    }
+
+    writeln!(f, "{}<{} id={{{}}}>", indents, scope.name, scope.id.0)?;
+
+    for child in scope.children.iter() {
+        fmt_scope_with_indents(child, f, level + 1)?;
+    }
+
+    writeln!(f, "{}</{}>", indents, scope.name)
+}
+
+impl Display for Scope<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Scope(name: {}, id: {})", self.name, self.id.0)
     }
 }
 
 impl Scope<'_> {
-    pub(crate) fn new(composer: Arc<dyn AnyCompose>, parent: ScopeId, index: usize) -> Self {
+    pub(crate) fn new(composer: Arc<dyn AnyCompose>, index: usize, name: String) -> Self {
         Self {
             id: ScopeId(unique_id()),
+            name,
             index,
             entity: None,
             parent: Some(parent),
@@ -81,9 +104,14 @@ impl Scope<'_> {
         }
     }
 
-    pub(crate) fn as_root_scope(entity: Entity, composer: Arc<dyn AnyCompose>) -> Self {
+    pub(crate) fn as_root_scope(
+        entity: Entity,
+        composer: Arc<dyn AnyCompose>,
+        name: String,
+    ) -> Self {
         Self {
             id: ScopeId(unique_id()),
+            name,
             index: 0,
             entity: Some(entity),
             parent: None,
