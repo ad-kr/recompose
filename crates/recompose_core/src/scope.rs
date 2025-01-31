@@ -31,9 +31,6 @@ pub struct Scope<'a> {
     /// For composables that spawn an entity, this is the field that holds the rerefence to the entity.
     pub(crate) entity: Option<Entity>,
 
-    /// The parent scope of this scope. Root-scopes do not have parents.
-    pub(crate) parent: Option<ScopeId>,
-
     /// Indicates if the scope will decompose on before the next recomposition.
     pub(crate) will_decompose: bool,
 
@@ -94,7 +91,6 @@ impl Scope<'_> {
             name,
             index,
             entity: None,
-            parent: Some(parent),
             will_decompose: false,
             composer: composer.clone(),
             state_index: 0,
@@ -114,7 +110,6 @@ impl Scope<'_> {
             name,
             index: 0,
             entity: Some(entity),
-            parent: None,
             will_decompose: false,
             composer: composer.clone(),
             state_index: 0,
@@ -267,27 +262,7 @@ impl Scope<'_> {
         }
     }
 
-    pub(crate) fn get_parent(&self) -> Option<ScopeId> {
-        self.parent
-    }
-
     pub(crate) fn set_entity(&mut self, entity: Entity) {
         self.entity = Some(entity);
-    }
-
-    pub(crate) fn get_entity(&self) -> Option<Entity> {
-        self.entity
-    }
-
-    pub(crate) fn flatten_to_hashmap(&self) -> HashMap<ScopeId, &Scope> {
-        let mut map = HashMap::new();
-
-        map.insert(self.id, self);
-
-        for child in self.children.iter() {
-            map.extend(child.flatten_to_hashmap());
-        }
-
-        map
     }
 }

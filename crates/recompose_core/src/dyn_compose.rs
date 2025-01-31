@@ -11,6 +11,15 @@ pub struct DynCompose {
     compose: Arc<dyn AnyCompose>,
 }
 
+impl Default for DynCompose {
+    fn default() -> Self {
+        Self {
+            type_id: TypeId::of::<()>(),
+            compose: Arc::new(()),
+        }
+    }
+}
+
 impl DynCompose {
     /// Creates a new `DynCompose` instance from a given composer.
     pub fn new(compose: impl Compose + 'static) -> Self {
@@ -18,6 +27,10 @@ impl DynCompose {
             type_id: compose.type_id(),
             compose: Arc::new(compose),
         }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.type_id == TypeId::of::<()>()
     }
 }
 

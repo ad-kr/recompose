@@ -12,6 +12,7 @@ use bevy_reflect::Reflect;
 use dyn_compose::DynCompose;
 use paste::paste;
 use scope::{Scope, ScopeId};
+use spawn::update_spawn_composables;
 use state::{SetState, StateChanged, StateSetter, StateSetterAction};
 use std::{
     collections::{HashMap, HashSet, VecDeque},
@@ -43,6 +44,7 @@ impl Plugin for RecomposePlugin {
                     drop_decomposed_scopes,
                     set_states,
                     recompose,
+                    update_spawn_composables,
                     order_children,
                     decompose,
                 )

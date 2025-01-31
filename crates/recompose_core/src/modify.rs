@@ -19,10 +19,7 @@ use std::sync::Arc;
 type ObserverGeneratorFn = Arc<dyn (Fn(&mut EntityCommands) -> Entity) + Send + Sync>;
 
 #[derive(Clone)]
-pub(crate) enum ObserverGenerator {
-    Temporary(ObserverGeneratorFn),
-    Retained(ObserverGeneratorFn),
-}
+pub(crate) struct ObserverGenerator(ObserverGeneratorFn);
 
 impl ObserverGenerator {
     fn new<E: Event, B2: Bundle, M>(
@@ -35,31 +32,11 @@ impl ObserverGenerator {
             commands.spawn(o).id()
         });
 
-        Self::Temporary(f)
-    }
-
-    fn retained<E: Event, B2: Bundle, M>(
-        observer: impl IntoObserverSystem<E, B2, M> + Clone + Sync,
-    ) -> Self {
-        let f = Arc::new(move |entity: &mut EntityCommands| {
-            let target_entity = entity.id();
-            let commands = entity.commands_mut();
-            let o = Observer::new(observer.clone()).with_entity(target_entity);
-            commands.spawn(o).id()
-        });
-
-        Self::Retained(f)
-    }
-
-    pub fn is_retained(&self) -> bool {
-        matches!(self, Self::Retained(_))
+        Self(f)
     }
 
     pub fn generate(&self, entity: &mut EntityCommands) -> Entity {
-        match self {
-            Self::Temporary(f) => f(entity),
-            Self::Retained(f) => f(entity),
-        }
+        self.0(entity)
     }
 }
 
@@ -104,16 +81,22 @@ impl ObserverGenerator {
 /// ```
 #[derive(Clone, Default)]
 pub struct Modifier {
-    pub(crate) children: Option<DynCompose>,
-    pub(crate) observer_generators: Vec<ObserverGenerator>,
+    pub(crate) children: DynCompose,
+    pub(crate) temporary_observers: Vec<ObserverGenerator>,
+    pub(crate) retained_observers: Vec<ObserverGenerator>,
 }
 
 impl Modifier {
     /// Joins two modifiers together. Note, the the newest children will override the old children.
     pub fn join(&mut self, other: &Modifier) {
-        self.children = other.children.as_ref().or(self.children.as_ref()).cloned();
-        self.observer_generators
-            .extend(other.observer_generators.iter().cloned());
+        self.children = match other.children.is_empty() {
+            true => self.children.clone(),
+            false => other.children.clone(),
+        };
+        self.temporary_observers
+            .extend(other.temporary_observers.iter().cloned());
+        self.retained_observers
+            .extend(other.retained_observers.iter().cloned());
     }
 }
 
@@ -133,7 +116,7 @@ impl<T: Modify + Compose> ModifyFunctions<T> for T {
 
     fn children(mut self, children: impl Compose + 'static) -> Self {
         let modifier = self.modifier();
-        modifier.children = Some(DynCompose::new(children));
+        modifier.children = DynCompose::new(children);
         self
     }
 
@@ -157,7 +140,7 @@ impl<T: Modify + Compose> ModifyFunctions<T> for T {
     ) -> Self {
         let observer_generator = ObserverGenerator::new(observer);
         let modifier = self.modifier();
-        modifier.observer_generators.push(observer_generator);
+        modifier.temporary_observers.push(observer_generator);
 
         self
     }
@@ -166,9 +149,9 @@ impl<T: Modify + Compose> ModifyFunctions<T> for T {
         mut self,
         observer: impl IntoObserverSystem<E, B2, M> + Clone + Sync,
     ) -> Self {
-        let observer_generator = ObserverGenerator::retained(observer);
+        let observer_generator = ObserverGenerator::new(observer);
         let modifier = self.modifier();
-        modifier.observer_generators.push(observer_generator);
+        modifier.retained_observers.push(observer_generator);
 
         self
     }
