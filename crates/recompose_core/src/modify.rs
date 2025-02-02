@@ -22,8 +22,8 @@ type ObserverGeneratorFn = Arc<dyn (Fn(&mut EntityCommands) -> Entity) + Send + 
 pub(crate) struct ObserverGenerator(ObserverGeneratorFn);
 
 impl ObserverGenerator {
-    fn new<E: Event, B2: Bundle, M>(
-        observer: impl IntoObserverSystem<E, B2, M> + Clone + Sync,
+    fn new<E: Event, B: Bundle, M>(
+        observer: impl IntoObserverSystem<E, B, M> + Clone + Sync,
     ) -> Self {
         let f = Arc::new(move |entity: &mut EntityCommands| {
             let target_entity = entity.id();
@@ -80,8 +80,10 @@ impl ObserverGenerator {
 /// }
 /// ```
 #[derive(Clone, Default)]
+#[allow(clippy::type_complexity)]
 pub struct Modifier {
     pub(crate) children: DynCompose,
+    pub(crate) conditional_bundles: Vec<Arc<dyn Fn(&mut EntityCommands) + Send + Sync>>,
     pub(crate) temporary_observers: Vec<ObserverGenerator>,
     pub(crate) retained_observers: Vec<ObserverGenerator>,
 }
@@ -93,6 +95,8 @@ impl Modifier {
             true => self.children.clone(),
             false => other.children.clone(),
         };
+        self.conditional_bundles
+            .extend(other.conditional_bundles.iter().cloned());
         self.temporary_observers
             .extend(other.temporary_observers.iter().cloned());
         self.retained_observers
@@ -117,6 +121,21 @@ impl<T: Modify + Compose> ModifyFunctions<T> for T {
     fn children(mut self, children: impl Compose + 'static) -> Self {
         let modifier = self.modifier();
         modifier.children = DynCompose::new(children);
+        self
+    }
+
+    fn with_bundle<B: Bundle + Clone>(mut self, condition: bool, bundle: B) -> Self::Target {
+        let bundle_modifier = Arc::new(move |entity: &mut EntityCommands| {
+            if condition {
+                entity.try_insert(bundle.clone());
+            } else {
+                entity.remove::<B>();
+            }
+        });
+
+        let modifier = self.modifier();
+        modifier.conditional_bundles.push(bundle_modifier);
+
         self
     }
 
@@ -181,6 +200,17 @@ pub trait ModifyFunctions<T>: Sized {
 
     /// Sets the children of the spawned entity.
     fn children(self, children: impl Compose + 'static) -> Self::Target;
+
+    // TODO: When `ObservedBy` is exposed, we should just retain it and SpawnComposable between each rerender and remove
+    // all other components, so that we don't need to worry about removing conditional bundle components ourselves. This
+    // will make this logic a lot simpler.
+
+    /// Add a bundle to the spawned entity if the condition is true. When the condition is false, we're actively trying
+    /// to remove the bundle each time the compsable recomposes.
+    ///
+    /// For the [`Spawn`](crate::spawn::Spawn)-composable, the conditional bundles are always added before the main
+    /// bundle, which means that the "main" bundle (of the same type) will always override the conditional bundles.
+    fn with_bundle<B: Bundle + Clone>(self, condition: bool, bundle: B) -> Self::Target;
 
     /// Converts this `Compose` into `DynCompose`.
     fn to_dyn(self) -> DynCompose

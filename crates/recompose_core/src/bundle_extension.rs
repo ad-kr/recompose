@@ -28,6 +28,10 @@ impl<B: Bundle + Clone, BE: BundleExtension<B>> ModifyFunctions<PhantomData<B>> 
         self.to_compose().to_dyn()
     }
 
+    fn with_bundle<B2: Bundle + Clone>(self, condition: bool, bundle: B2) -> Self::Target {
+        self.to_compose().with_bundle(condition, bundle)
+    }
+
     fn keyed(self, key: usize) -> Keyed {
         self.to_compose().keyed(key)
     }

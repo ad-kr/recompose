@@ -1,7 +1,7 @@
 [package]
 name = "recompose"
 description = "Declarative framework for the Bevy game engine"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/ad-kr/recompose"
@@ -16,7 +16,7 @@ members = ["crates/*"]
 bevy = "0.15.0"
 
 [dependencies]
-recompose_core = { version = "0.1.2", path = "crates/recompose_core" }
+recompose_core = { version = "0.2.0", path = "crates/recompose_core" }
 
 [[example]]
 name = "basic"
@@ -37,3 +37,7 @@ path = "examples/external_state.rs"
 [[example]]
 name = "dynamic_composables"
 path = "examples/dynamic_composables.rs"
+
+[[example]]
+name = "conditional_bundles"
+path = "examples/conditional_bundles.rs"

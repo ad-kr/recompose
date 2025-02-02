@@ -68,6 +68,7 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
         let generator = self.bundle_generator.clone();
         let temporary_observer_generators = self.modifier.temporary_observers.clone();
         let temporary_observer_entities = temporary_observers.clone();
+        let conditional_bundles = self.modifier.conditional_bundles.clone();
         // In order to make the Spawn-composable more efficient, we're doing some trickery to avoid using `run_system`,
         // which proved itself to be very slow.
         //
@@ -94,6 +95,10 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
 
                     let bundle = generator();
                     let mut ec = commands.entity(entity);
+
+                    for conditional_bundle in conditional_bundles.iter() {
+                        conditional_bundle(&mut ec);
+                    }
 
                     ec.try_insert((bundle, ChildOrder(child_index)))
                         .set_parent(parent_entity);
