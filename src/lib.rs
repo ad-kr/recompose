@@ -125,9 +125,9 @@
 //!   [`children`](prelude::ModifyFunctions::children), [`observe`](prelude::ModifyFunctions::observe).
 //!
 //! # Compatibility with Bevy
-//! | Bevy | recompose |
-//! |------|-----------|
-//! | 0.15 | 0.1       |
+//! | Bevy | recompose     |
+//! | ---- | ------------- |
+//! | 0.15 | 0.1-0.2       |
 //!
 //! # Motivation
 //! Recompose is heavily inspired by the [actuate](https://docs.rs/actuate/) crate, which also provides a declarative
