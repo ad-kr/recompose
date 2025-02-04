@@ -17,3 +17,6 @@ bevy_picking = { version = "0.15.0", default-features = false }
 bevy_reflect = { version = "0.15.0", default-features = false }
 
 paste = "1.0.15"
+
+[features]
+debug = []
