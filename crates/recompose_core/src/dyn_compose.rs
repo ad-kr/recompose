@@ -39,7 +39,7 @@ impl Compose for DynCompose {
         let type_id = cx.use_state(self.type_id);
 
         let create_new_scope = |cx: &mut Scope| {
-            let mut scope = Scope::new(self.compose.clone(), 0, self.compose.get_name());
+            let mut scope = Scope::new(self.compose.clone(), 0);
             self.compose.recompose_scope(&mut scope);
             cx.children.push(scope);
             cx.set_state(&type_id, self.type_id);

@@ -156,9 +156,8 @@ impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
                 continue;
             }
 
-            let compose_name = key_compose.name();
             let compose = Arc::new(key_compose.clone());
-            let mut scope = Scope::new(compose, index, compose_name);
+            let mut scope = Scope::new(compose, index);
             key_compose.recompose_scope(&mut scope);
 
             modified_scope_ids.insert(key, scope.id);
@@ -205,8 +204,7 @@ macro_rules! impl_compose_for_tuple {
                                 .recompose_scope(existing_scope);
                         } else {
                             let compose = Arc::new(self.$c.clone());
-                            let compose_name = compose.name();
-                            let mut scope = Scope::new(compose, $c, compose_name);
+                            let mut scope = Scope::new(compose, $c);
                             self.$c.recompose_scope(&mut scope);
                             cx.children.push(scope);
                         }
@@ -288,8 +286,7 @@ impl<C: Compose> AnyCompose for C {
         };
 
         let child_compose = Arc::new(child);
-        let compose_name = child_compose.name();
-        let mut child_scope = Scope::new(child_compose.clone(), 0, compose_name);
+        let mut child_scope = Scope::new(child_compose.clone(), 0);
 
         child_compose.recompose_scope(&mut child_scope);
 
@@ -311,7 +308,7 @@ impl<C: Compose> AnyCompose for C {
 
 fn initial_compose(mut roots: Query<(Entity, &mut Root), Added<Root>>) {
     for (entity, mut root) in roots.iter_mut() {
-        let mut scope = Scope::as_root_scope(entity, root.compose.clone(), root.compose.get_name());
+        let mut scope = Scope::as_root_scope(entity, root.compose.clone());
 
         root.compose.recompose_scope(&mut scope);
 

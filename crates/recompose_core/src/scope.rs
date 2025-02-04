@@ -21,9 +21,6 @@ pub struct ScopeId(usize);
 pub struct Scope<'a> {
     pub(crate) id: ScopeId,
 
-    /// The name of the composable. It is used for debugging purposes.
-    pub(crate) name: String,
-
     /// Indicates the index of the scope when it was "recomposed". It is not necessarily the same as the index in the
     /// parent's children vector.
     pub(crate) index: usize,
@@ -64,31 +61,32 @@ fn fmt_scope_with_indents(
     level: usize,
 ) -> std::fmt::Result {
     let indents = "  ".repeat(level);
+    let name = scope.composer.get_name();
 
     if scope.children.is_empty() {
-        return writeln!(f, "{}<{} id={{{}}}/>", indents, scope.name, scope.id.0);
+        return writeln!(f, "{}<{} id={{{}}}/>", indents, name, scope.id.0);
     }
 
-    writeln!(f, "{}<{} id={{{}}}>", indents, scope.name, scope.id.0)?;
+    writeln!(f, "{}<{} id={{{}}}>", indents, name, scope.id.0)?;
 
     for child in scope.children.iter() {
         fmt_scope_with_indents(child, f, level + 1)?;
     }
 
-    writeln!(f, "{}</{}>", indents, scope.name)
+    writeln!(f, "{}</{}>", indents, name)
 }
 
 impl Display for Scope<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Scope(name: {}, id: {})", self.name, self.id.0)
+        let name = self.composer.get_name();
+        write!(f, "Scope(name: {}, id: {})", name, self.id.0)
     }
 }
 
 impl Scope<'_> {
-    pub(crate) fn new(composer: Arc<dyn AnyCompose>, index: usize, name: String) -> Self {
+    pub(crate) fn new(composer: Arc<dyn AnyCompose>, index: usize) -> Self {
         Self {
             id: ScopeId(unique_id()),
-            name,
             index,
             entity: None,
             will_decompose: false,
@@ -100,14 +98,9 @@ impl Scope<'_> {
         }
     }
 
-    pub(crate) fn as_root_scope(
-        entity: Entity,
-        composer: Arc<dyn AnyCompose>,
-        name: String,
-    ) -> Self {
+    pub(crate) fn as_root_scope(entity: Entity, composer: Arc<dyn AnyCompose>) -> Self {
         Self {
             id: ScopeId(unique_id()),
-            name,
             index: 0,
             entity: Some(entity),
             will_decompose: false,
