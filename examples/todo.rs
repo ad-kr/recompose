@@ -151,7 +151,7 @@ impl Compose for Todo {
                 modifier: Modifier::default(),
             }
             .observe(move |_: Trigger<Pointer<Click>>, mut state: SetState| {
-                state.modify_with_id(all_todos, move |todos| {
+                state.modify(all_todos, move |todos| {
                     let mut todos = todos.clone();
                     todos.retain(|(todo_id, _)| *todo_id != id);
                     todos
@@ -231,7 +231,7 @@ impl Compose for InputField {
                     let events = key_events.read().cloned().collect::<Vec<_>>();
                     let was_just_pressed = just_pressed.get_just_pressed().len() > 0;
 
-                    state.modify_with_id(input_ref, move |val| {
+                    state.modify(input_ref, move |val| {
                         let mut new_string = val.clone();
 
                         if was_just_pressed {

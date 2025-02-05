@@ -44,5 +44,5 @@ fn timer(cx: &mut Scope) -> impl Compose {
 
 fn add_elapsed(time: Res<Time<Real>>, mut state: SetState) {
     let elapsed = time.elapsed_secs_f64();
-    state.set_with_id(ELAPSED_ID, elapsed.round());
+    state.set(ELAPSED_ID, elapsed.round());
 }
