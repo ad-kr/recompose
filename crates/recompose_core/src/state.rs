@@ -5,9 +5,8 @@ use std::{any::Any, collections::HashMap, marker::PhantomData, ops::Deref, sync:
 type ArcAny = Arc<dyn Any + Send + Sync>;
 
 pub(crate) enum StateSetterAction {
-    Set(ArcAny),
-    SetUnchanged(ArcAny),
-    Modify(Box<dyn (Fn(ArcAny) -> ArcAny) + Send + Sync>),
+    Set(ArcAny, bool),
+    Modify(Box<dyn (Fn(ArcAny) -> (ArcAny, bool)) + Send + Sync>),
 }
 
 #[derive(Resource, Default)]
@@ -23,16 +22,39 @@ pub struct SetState<'w> {
 impl SetState<'_> {
     /// Sets the state value.
     pub fn set<T: Send + Sync + 'static>(&mut self, state: impl GetStateId<T>, value: T) {
-        self.setter
-            .queued
-            .insert(state.get_id(), StateSetterAction::Set(Arc::new(value)));
+        self.setter.queued.insert(
+            state.get_id(),
+            StateSetterAction::Set(Arc::new(value), true),
+        );
+    }
+
+    /// Sets the state value only if it differs from the previous value.
+    pub fn set_neq<T: PartialEq + Clone + Send + Sync + 'static>(
+        &mut self,
+        state: impl GetStateId<T>,
+        value: T,
+    ) {
+        self.setter.queued.insert(
+            state.get_id(),
+            StateSetterAction::Modify(Box::new(move |input| {
+                let input = input.downcast_ref::<T>().unwrap();
+                let has_changed = *input != value;
+
+                let new_value = match has_changed {
+                    true => value.clone(),
+                    false => input.clone(),
+                };
+
+                (Arc::new(new_value), has_changed)
+            })),
+        );
     }
 
     /// Sets the state value, but does not trigger a recompose.
     pub fn set_unchanged<T: Send + Sync + 'static>(&mut self, state: impl GetStateId<T>, value: T) {
         self.setter.queued.insert(
             state.get_id(),
-            StateSetterAction::SetUnchanged(Arc::new(value)),
+            StateSetterAction::Set(Arc::new(value), false),
         );
     }
 
@@ -46,7 +68,22 @@ impl SetState<'_> {
             StateSetterAction::Modify(Box::new(move |input| {
                 let input = input.downcast_ref::<T>().unwrap();
 
-                Arc::new((value_fn)(input))
+                (Arc::new((value_fn)(input)), true)
+            })),
+        );
+    }
+
+    pub fn modify_unchanged<T: Send + Sync + 'static>(
+        &mut self,
+        state: impl GetStateId<T>,
+        value_fn: impl (Fn(&T) -> T) + Send + Sync + 'static,
+    ) {
+        self.setter.queued.insert(
+            state.get_id(),
+            StateSetterAction::Modify(Box::new(move |input| {
+                let input = input.downcast_ref::<T>().unwrap();
+
+                (Arc::new((value_fn)(input)), false)
             })),
         );
     }

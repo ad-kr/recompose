@@ -376,15 +376,16 @@ fn set_states(mut setter: SetState, mut roots: Query<&mut Root>) {
                     continue;
                 };
 
-                if !matches!(state_setter_action, StateSetterAction::SetUnchanged(_)) {
-                    state.changed = StateChanged::Queued;
-                }
-
-                state.value = match state_setter_action {
-                    StateSetterAction::Set(value) => value,
-                    StateSetterAction::SetUnchanged(value) => value,
+                let (value, should_change) = match state_setter_action {
+                    StateSetterAction::Set(value, should_change) => (value, should_change),
                     StateSetterAction::Modify(f) => f(state.value.clone()),
                 };
+
+                state.value = value;
+
+                if should_change {
+                    state.changed = StateChanged::Queued;
+                }
             }
 
             for child in scope.children.iter_mut().rev() {
