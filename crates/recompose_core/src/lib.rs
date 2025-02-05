@@ -178,7 +178,7 @@ impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
             scope.will_decompose = true;
         }
 
-        cx.set_state(&scope_ids, modified_scope_ids);
+        cx.set_state_unchanged(&scope_ids, modified_scope_ids);
     }
 
     fn ignore_children(&self) -> bool {
