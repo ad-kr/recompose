@@ -179,10 +179,10 @@ impl<T: Modify + Compose> ModifyFunctions<T> for T {
         let typed_state_id = TypedStateId::from_state_id(hover_state.get_id());
 
         self.observe_retained(move |_: Trigger<Pointer<Over>>, mut state: SetState| {
-            state.set(typed_state_id, true)
+            state.set_neq(typed_state_id, true)
         })
         .observe_retained(move |_: Trigger<Pointer<Out>>, mut state: SetState| {
-            state.set(typed_state_id, false)
+            state.set_neq(typed_state_id, false)
         })
     }
 }
