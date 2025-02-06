@@ -10,7 +10,7 @@ use bevy_ecs::{
     system::{Commands, Query},
 };
 use bevy_hierarchy::{BuildChildren, DespawnRecursiveExt};
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 /// A composable that takes in a bundle and spawns an entity with the bundle. When the composable is recomposed, the
 /// bundle, children and observers are updated. When the composable is "decomposed", the entity is despawned from the
@@ -143,8 +143,13 @@ pub fn update_spawn_composables(
     mut roots: Query<&mut Root>,
     spawn_composables: Query<(Entity, &SpawnComposable)>,
 ) {
-    // It would make more sense to iterate over `spawn_composables`, but it is easier to just itarate over the roots,
-    // even though it iterates over scopes that are not Spawn-composables.
+    let spawn_composable_lookup = spawn_composables
+        .iter()
+        .map(|sc| (sc.1 .0, sc.0))
+        .collect::<BTreeMap<_, _>>();
+
+    // It would make more sense to iterate over `spawn_composables`, but it is easier to just itarate over the roots to
+    // avoid having to deal with the borrow checker rules.
     for mut root in roots.iter_mut() {
         let Some(scope) = &mut root.scope else {
             continue;
@@ -153,7 +158,9 @@ pub fn update_spawn_composables(
         let mut scopes = Vec::from([scope]);
 
         while let Some(scope) = scopes.pop() {
-            if let Some((entity, _)) = spawn_composables.iter().find(|(_, sc)| sc.0 == scope.id) {
+            let spawn_composable = spawn_composable_lookup.get(&scope.id);
+
+            if let Some(entity) = spawn_composable {
                 let should_update = scope.get_state_by_index::<bool>(1);
 
                 if *should_update {
@@ -162,7 +169,7 @@ pub fn update_spawn_composables(
                     >>(2);
 
                     bundle_updater(
-                        entity,
+                        *entity,
                         // Technically, we could just get the child_index inside the scope, but we would need to clone
                         // twice, as opposed to just once here.
                         scope.child_index.clone(),
