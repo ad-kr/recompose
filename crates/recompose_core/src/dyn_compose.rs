@@ -1,4 +1,4 @@
-use crate::{AnyCompose, Compose, Scope};
+use crate::{AnyCompose, ChildIndex, Compose, Scope};
 use std::{any::Any, any::TypeId, sync::Arc};
 
 /// A dynamic composition structure that holds a type-erased composer. This allows for "dynamic dispatch" of the
@@ -38,8 +38,23 @@ impl Compose for DynCompose {
     fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
         let type_id = cx.use_state(self.type_id);
 
+        let parent_entity = match cx.entity {
+            Some(entity) => entity,
+            None => cx.parent_entity,
+        };
+
+        let parent_child_index = match cx.entity {
+            Some(_) => ChildIndex::new(0),
+            None => cx.child_index.clone(),
+        };
+
         let create_new_scope = |cx: &mut Scope| {
-            let mut scope = Scope::new(self.compose.clone(), 0);
+            let mut scope = Scope::new(
+                self.compose.clone(),
+                0,
+                parent_entity,
+                parent_child_index.clone(),
+            );
             self.compose.recompose_scope(&mut scope);
             cx.children.push(scope);
             cx.set_state(&type_id, self.type_id);
@@ -53,6 +68,10 @@ impl Compose for DynCompose {
             }
 
             existing_scope.composer = self.compose.clone();
+            existing_scope.parent_entity = parent_entity;
+            let mut child_index = parent_child_index.clone();
+            child_index.push(existing_scope.index);
+            existing_scope.child_index = child_index;
             existing_scope
                 .composer
                 .clone()

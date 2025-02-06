@@ -1,6 +1,6 @@
 use crate::{
     state::{Dependency, DynState, GetStateId, State, StateId, TypedStateId},
-    unique_id, AnyCompose, StateChanged,
+    unique_id, AnyCompose, ChildIndex, StateChanged,
 };
 use bevy_ecs::{
     entity::Entity,
@@ -21,12 +21,18 @@ pub struct ScopeId(usize);
 pub struct Scope<'a> {
     pub(crate) id: ScopeId,
 
-    /// Indicates the index of the scope when it was "recomposed". It is not necessarily the same as the index in the
-    /// parent's children vector.
+    /// Indicates the index of the scope when it was "recomposed" relative to the scopes parent scope. It is not
+    /// necessarily the same as the index in the parent's children vector.
     pub(crate) index: usize,
+
+    /// The accumulated index of the scope relative to the closest relative with an entity.
+    pub(crate) child_index: ChildIndex,
 
     /// For composables that spawn an entity, this is the field that holds the rerefence to the entity.
     pub(crate) entity: Option<Entity>,
+
+    /// The entity of the scopes most immediate parent with an entity.
+    pub(crate) parent_entity: Entity,
 
     /// Indicates if the scope will decompose on before the next recomposition.
     pub(crate) will_decompose: bool,
@@ -84,11 +90,20 @@ impl Display for Scope<'_> {
 }
 
 impl Scope<'_> {
-    pub(crate) fn new(composer: Arc<dyn AnyCompose>, index: usize) -> Self {
+    pub(crate) fn new(
+        composer: Arc<dyn AnyCompose>,
+        index: usize,
+        parent_entity: Entity,
+        mut parent_child_index: ChildIndex,
+    ) -> Self {
+        parent_child_index.push(index);
+
         Self {
             id: ScopeId(unique_id()),
             index,
+            child_index: parent_child_index,
             entity: None,
+            parent_entity,
             will_decompose: false,
             composer: composer.clone(),
             state_index: 0,
@@ -102,7 +117,9 @@ impl Scope<'_> {
         Self {
             id: ScopeId(unique_id()),
             index: 0,
+            child_index: ChildIndex::new(0),
             entity: Some(entity),
+            parent_entity: entity,
             will_decompose: false,
             composer: composer.clone(),
             state_index: 0,

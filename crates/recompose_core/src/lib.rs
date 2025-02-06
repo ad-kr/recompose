@@ -2,7 +2,7 @@ use bevy_app::{App, Plugin, PreUpdate};
 use bevy_ecs::{
     component::{Component, ComponentHooks, ComponentId, StorageType},
     entity::Entity,
-    query::Added,
+    query::{Added, Changed},
     schedule::IntoSystemConfigs,
     system::{Commands, Query, SystemState},
     world::{DeferredWorld, World},
@@ -143,6 +143,16 @@ impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
             panic!("Duplicate key found: {:?}", duplicate_key);
         }
 
+        let parent_entity = match cx.entity {
+            Some(entity) => entity,
+            None => cx.parent_entity,
+        };
+
+        let parent_child_index = match cx.entity {
+            Some(_) => ChildIndex::new(0),
+            None => cx.child_index.clone(),
+        };
+
         for (index, key_compose) in self.iter().enumerate() {
             let key = key_compose.key();
             let scope_id = scope_ids.get(&key);
@@ -152,12 +162,16 @@ impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
             if let Some(scope) = scope {
                 scope.index = index;
                 scope.composer = Arc::new(key_compose.clone());
+                scope.parent_entity = parent_entity;
+                let mut child_index = parent_child_index.clone();
+                child_index.push(index);
+                scope.child_index = child_index;
                 scope.composer.clone().recompose_scope(scope);
                 continue;
             }
 
             let compose = Arc::new(key_compose.clone());
-            let mut scope = Scope::new(compose, index);
+            let mut scope = Scope::new(compose, index, parent_entity, parent_child_index.clone());
             key_compose.recompose_scope(&mut scope);
 
             modified_scope_ids.insert(key, scope.id);
@@ -195,16 +209,30 @@ macro_rules! impl_compose_for_tuple {
         paste! {
             impl<$([<C$c>]: Compose + Clone + 'static),*> Compose for ($([<C$c>]),*) {
                 fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
+                    let parent_entity = match cx.entity {
+                        Some(entity) => entity,
+                        None => cx.parent_entity,
+                    };
+
+                    let parent_child_index = match cx.entity {
+                        Some(_) => ChildIndex::new(0),
+                        None => cx.child_index.clone(),
+                    };
+
                     $(
                         if let Some(existing_scope) = cx.children.get_mut($c) {
                             existing_scope.composer = Arc::new(self.$c.clone());
+                            existing_scope.parent_entity = parent_entity;
+                            let mut child_index = parent_child_index.clone();
+                            child_index.push($c);
+                            existing_scope.child_index = child_index;
                             existing_scope
                                 .composer
                                 .clone()
                                 .recompose_scope(existing_scope);
                         } else {
                             let compose = Arc::new(self.$c.clone());
-                            let mut scope = Scope::new(compose, $c);
+                            let mut scope = Scope::new(compose, $c, parent_entity, parent_child_index.clone());
                             self.$c.recompose_scope(&mut scope);
                             cx.children.push(scope);
                         }
@@ -279,14 +307,30 @@ impl<C: Compose> AnyCompose for C {
             return;
         }
 
+        let parent_entity = match scope.entity {
+            Some(entity) => entity,
+            None => scope.parent_entity,
+        };
+
+        let parent_child_index = match scope.entity {
+            Some(_) => ChildIndex::new(0),
+            None => scope.child_index.clone(),
+        };
+
         if let Some(child_scope) = scope.children.first_mut() {
             child_scope.composer = Arc::new(child);
+            // TODO: Can we do this in a way that doesn't require us to remember to set these values?
+            child_scope.parent_entity = parent_entity;
+            let mut child_index = parent_child_index;
+            child_index.push(0);
+            child_scope.child_index = child_index;
             child_scope.composer.clone().recompose_scope(child_scope);
             return;
         };
 
         let child_compose = Arc::new(child);
-        let mut child_scope = Scope::new(child_compose.clone(), 0);
+        let mut child_scope =
+            Scope::new(child_compose.clone(), 0, parent_entity, parent_child_index);
 
         child_compose.recompose_scope(&mut child_scope);
 
@@ -423,10 +467,32 @@ fn recompose(mut roots: Query<&mut Root>) {
     }
 }
 
-#[derive(Component, Clone, Copy, PartialEq, PartialOrd, Reflect)]
-pub(crate) struct ChildOrder(pub f64);
+#[derive(Component, Clone, PartialEq, PartialOrd, Reflect)]
+pub(crate) struct ChildOrder(pub ChildIndex);
 
-fn order_children(mut commands: Commands, parents: Query<(Entity, &Parent, &ChildOrder)>) {
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Reflect)]
+pub(crate) struct ChildIndex(pub Vec<usize>);
+
+impl ChildIndex {
+    pub fn new(index: usize) -> Self {
+        Self(vec![index])
+    }
+
+    pub fn push(&mut self, index: usize) {
+        self.0.push(index);
+    }
+}
+
+fn order_children(
+    mut commands: Commands,
+    parents: Query<(Entity, &Parent, &ChildOrder)>,
+    has_order_changed: Query<(), Changed<ChildOrder>>,
+) {
+    // TODO: Check if this helps with performance
+    if has_order_changed.is_empty() {
+        return;
+    }
+
     let mut parent_children = HashMap::<Entity, Vec<(Entity, ChildOrder)>>::new();
 
     for (entity, parent, order) in parents.iter() {
@@ -434,9 +500,9 @@ fn order_children(mut commands: Commands, parents: Query<(Entity, &Parent, &Chil
         let entry = parent_children.get_mut(&parent_entity);
 
         if let Some(entry) = entry {
-            entry.push((entity, *order));
+            entry.push((entity, order.clone()));
         } else {
-            parent_children.insert(parent_entity, vec![(entity, *order)]);
+            parent_children.insert(parent_entity, vec![(entity, order.clone())]);
         }
     }
 

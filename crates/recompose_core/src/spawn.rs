@@ -1,7 +1,7 @@
 use crate::{
     modify::{Modifier, Modify},
     scope::ScopeId,
-    ChildOrder, Compose, Root, Scope, SetState,
+    ChildIndex, ChildOrder, Compose, Root, Scope, SetState,
 };
 use bevy_ecs::{
     bundle::Bundle,
@@ -10,7 +10,7 @@ use bevy_ecs::{
     system::{Commands, Query},
 };
 use bevy_hierarchy::{BuildChildren, DespawnRecursiveExt};
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 /// A composable that takes in a bundle and spawns an entity with the bundle. When the composable is recomposed, the
 /// bundle, children and observers are updated. When the composable is "decomposed", the entity is despawned from the
@@ -42,9 +42,9 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
         let entity = cx.use_state(None);
         let should_update = cx.use_state(true);
         let bundle_updater = cx.use_state::<Box<
-            dyn Fn(Entity, Entity, f64, &mut Commands, &mut SetState) + Send + Sync,
+            dyn Fn(Entity, ChildIndex, &mut Commands, &mut SetState) + Send + Sync,
         >>(Box::new(
-            |_: Entity, _: Entity, _: f64, _: &mut Commands, _: &mut SetState| {},
+            |_: Entity, _: ChildIndex, _: &mut Commands, _: &mut SetState| {},
         ));
         let temporary_observers = cx.use_state(Vec::new());
 
@@ -69,6 +69,7 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
         let temporary_observer_generators = self.modifier.temporary_observers.clone();
         let temporary_observer_entities = temporary_observers.clone();
         let conditional_bundles = self.modifier.conditional_bundles.clone();
+        let parent_entity = cx.parent_entity;
         // In order to make the Spawn-composable more efficient, we're doing some trickery to avoid using `run_system`,
         // which proved itself to be very slow.
         //
@@ -81,8 +82,7 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
             &bundle_updater,
             Box::new(
                 move |entity: Entity,
-                      parent_entity: Entity,
-                      child_index: f64,
+                      child_index: ChildIndex,
                       commands: &mut Commands,
                       state: &mut SetState| {
                     for observer_entity in temporary_observer_entities.iter() {
@@ -150,10 +150,6 @@ pub fn update_spawn_composables(
             continue;
         };
 
-        let scope_entity = scope.entity.expect("Scope entity not found");
-        let indices_and_parents =
-            get_scope_indices_and_parent_entities(scope, vec![0], scope_entity);
-
         let mut scopes = Vec::from([scope]);
 
         while let Some(scope) = scopes.pop() {
@@ -161,14 +157,18 @@ pub fn update_spawn_composables(
                 let should_update = scope.get_state_by_index::<bool>(1);
 
                 if *should_update {
-                    let (index, parent_entity) =
-                        indices_and_parents.get(&scope.id).expect("Scope not found");
-
                     let bundle_updater = scope.get_state_by_index::<Box<
-                        dyn Fn(Entity, Entity, f64, &mut Commands, &mut SetState) + Send + Sync,
+                        dyn Fn(Entity, ChildIndex, &mut Commands, &mut SetState) + Send + Sync,
                     >>(2);
 
-                    bundle_updater(entity, *parent_entity, *index, &mut commands, &mut state);
+                    bundle_updater(
+                        entity,
+                        // Technically, we could just get the child_index inside the scope, but we would need to clone
+                        // twice, as opposed to just once here.
+                        scope.child_index.clone(),
+                        &mut commands,
+                        &mut state,
+                    );
 
                     scope.set_state_unchanged(&should_update, false);
                 }
@@ -177,39 +177,4 @@ pub fn update_spawn_composables(
             scopes.extend(scope.children.iter_mut());
         }
     }
-}
-
-fn get_scope_indices_and_parent_entities(
-    scope: &Scope,
-    mut ancestor_indices: Vec<usize>,
-    parent_entity: Entity,
-) -> HashMap<ScopeId, (f64, Entity)> {
-    let mut indices = HashMap::new();
-
-    ancestor_indices.push(scope.index);
-
-    let index = ancestor_indices
-        .iter()
-        .enumerate()
-        .map(|(i, item)| *item as f64 * 10f64.powi(-(i as i32 + 1)))
-        .sum::<f64>();
-
-    indices.insert(scope.id, (index, parent_entity));
-
-    let ancestor_indices = match scope.entity {
-        Some(_) => vec![0],
-        None => ancestor_indices,
-    };
-    let passed_entity = match scope.entity {
-        Some(e) => e,
-        None => parent_entity,
-    };
-
-    for child in scope.children.iter() {
-        let child_indices =
-            get_scope_indices_and_parent_entities(child, ancestor_indices.clone(), passed_entity);
-        indices.extend(child_indices);
-    }
-
-    indices
 }
