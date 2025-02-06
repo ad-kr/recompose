@@ -112,7 +112,7 @@ impl<C: Compose + Clone + 'static> Compose for Option<C> {
 
     fn name(&self) -> String {
         match self {
-            Some(inner) => format!("Some({})", inner.name()),
+            Some(_) => String::from("Some"),
             None => String::from("None"),
         }
     }

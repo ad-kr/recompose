@@ -68,7 +68,6 @@ impl Compose for DynCompose {
     }
 
     fn name(&self) -> String {
-        let inner_name = self.compose.get_name();
-        format!("DynCompose({})", inner_name)
+        String::from("DynCompose")
     }
 }
