@@ -27,6 +27,10 @@ impl Compose for Keyed {
     fn ignore_children(&self) -> bool {
         self.compose.ignore_children()
     }
+
+    fn name(&self) -> String {
+        String::from("KeyedCompose")
+    }
 }
 
 impl Key for Keyed {
