@@ -58,6 +58,7 @@ impl SetState<'_> {
         );
     }
 
+    /// Modifies the state value based on the existing value.
     pub fn modify<T: Send + Sync + 'static>(
         &mut self,
         state: impl GetStateId<T>,
@@ -73,6 +74,7 @@ impl SetState<'_> {
         );
     }
 
+    /// Modifies the state value, but does not trigger a recompose.
     pub fn modify_unchanged<T: Send + Sync + 'static>(
         &mut self,
         state: impl GetStateId<T>,
