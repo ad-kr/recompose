@@ -23,8 +23,6 @@ use std::{
 };
 
 pub mod bundle_extension;
-#[cfg(feature = "debug")]
-pub mod debug;
 pub mod dyn_compose;
 pub mod keyed;
 pub mod modify;
