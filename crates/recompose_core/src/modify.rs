@@ -74,7 +74,6 @@ impl ObserverGenerator {
 /// impl Compose for Button {
 ///    fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
 ///       Text::new(self.label.clone())
-///           .to_compose()
 ///           .use_modifier(&self.modifier)
 ///    }
 /// }
