@@ -12,7 +12,7 @@ use std::{
     sync::Arc,
 };
 
-#[derive(Default, Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Default, Clone, Copy, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
 pub struct ScopeId(usize);
 
 /// A scope can be thought of as a "sum" of all modifications done by the [`compose`](crate::Compose::compose) function
