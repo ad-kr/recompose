@@ -130,7 +130,7 @@ impl Scope<'_> {
     }
 
     /// Creates a new state. States are persisted between each recomposition of the composable. Each time a state
-    /// changes, the scope it belongs to is schedules for recomposition.
+    /// changes, the scope it belongs to is scheduled for recomposition.
     pub fn use_state<T: Any + Send + Sync>(&mut self, initial_value: T) -> State<T> {
         if let Some(existing_state) = self.states.get(self.state_index) {
             self.state_index += 1;
@@ -154,7 +154,7 @@ impl Scope<'_> {
     }
 
     /// Creates a new state with a given id. It is useful for cases where you want to reference a state in an external
-    /// system or composable.
+    /// system or a different composable.
     pub fn use_state_with_id<T: Any + Send + Sync>(
         &mut self,
         state_id: TypedStateId<T>,
