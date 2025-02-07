@@ -61,6 +61,6 @@ impl Compose for Square {
             // `.with_bundle` lets us conditionally add a bundle to the spawned entity. Note that the main bundle
             // overrides the conditional bundles, so if we added `BorderColor` to the main bundle, the conditional
             // border would be ignored.
-            .with_bundle(self.has_border, BorderColor(Srgba::WHITE.into()))
+            .with_bundle_if(self.has_border, BorderColor(Srgba::WHITE.into()))
     }
 }

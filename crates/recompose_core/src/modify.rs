@@ -124,7 +124,7 @@ impl<T: Modify + Compose> ModifyFunctions<T> for T {
         self
     }
 
-    fn with_bundle<B: Bundle + Clone>(mut self, condition: bool, bundle: B) -> Self::Target {
+    fn with_bundle_if<B: Bundle + Clone>(mut self, condition: bool, bundle: B) -> Self::Target {
         let bundle_modifier = Arc::new(move |entity: &mut EntityCommands| {
             if condition {
                 entity.try_insert(bundle.clone());
@@ -214,7 +214,7 @@ pub trait ModifyFunctions<T>: Sized {
     ///
     /// For the [`Spawn`](crate::spawn::Spawn)-composable, the conditional bundles are always added before the main
     /// bundle, which means that the "main" bundle (of the same type) will always override the conditional bundles.
-    fn with_bundle<B: Bundle + Clone>(self, condition: bool, bundle: B) -> Self::Target;
+    fn with_bundle_if<B: Bundle + Clone>(self, condition: bool, bundle: B) -> Self::Target;
 
     /// Converts this `Compose` into `DynCompose`.
     fn to_dyn(self) -> DynCompose
