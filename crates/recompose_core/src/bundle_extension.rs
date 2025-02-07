@@ -32,10 +32,7 @@ impl<B: Bundle + Clone, BE: BundleExtension<B>> ModifyFunctions<PhantomData<B>> 
         self.to_compose().to_dyn()
     }
 
-    fn to_option(self) -> Option<Self::Target>
-    where
-        Self::Target: 'static,
-    {
+    fn to_option(self) -> Option<Self::Target> {
         self.to_compose().to_option()
     }
 
