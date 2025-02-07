@@ -18,9 +18,6 @@ bevy = "0.15.0"
 [dependencies]
 recompose_core = { version = "0.2.0", path = "crates/recompose_core" }
 
-[features]
-debug = ["recompose_core/debug"]
-
 [[example]]
 name = "basic"
 path = "examples/basic.rs"
