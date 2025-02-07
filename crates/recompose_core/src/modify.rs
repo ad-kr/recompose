@@ -239,8 +239,16 @@ pub trait ModifyFunctions<T>: Sized {
     where
         Self::Target: 'static;
 
-    /// Wraps this `Compose` in an `Option`.
+    /// Wraps this `Compose` in `Some`.
     fn to_option(self) -> Option<Self::Target>;
+
+    /// Wraps this `Compose` in `Some` if the condition is met, otherwise returns `None`.
+    fn to_option_if(self, condition: bool) -> Option<Self::Target> {
+        match condition {
+            true => self.to_option(),
+            false => None,
+        }
+    }
 
     /// Wraps this `Compose` in a `Keyed` compose.
     fn keyed<H: Hash + Send + Sync>(self, key: H) -> Keyed<H>
