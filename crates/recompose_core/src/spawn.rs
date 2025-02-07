@@ -68,7 +68,7 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
         let generator = self.bundle_generator.clone();
         let temporary_observer_generators = self.modifier.temporary_observers.clone();
         let temporary_observer_entities = temporary_observers.clone();
-        let conditional_bundles = self.modifier.conditional_bundles.clone();
+        let conditional_bundles = self.modifier.bundle_modifiers.clone();
         let parent_entity = cx.parent_entity;
         // In order to make the Spawn-composable more efficient, we're doing some trickery to avoid using `run_system`,
         // which proved itself to be very slow.

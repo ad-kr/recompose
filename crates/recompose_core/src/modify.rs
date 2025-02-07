@@ -83,7 +83,7 @@ impl ObserverGenerator {
 #[allow(clippy::type_complexity)]
 pub struct Modifier {
     pub(crate) children: DynCompose,
-    pub(crate) conditional_bundles: Vec<Arc<dyn Fn(&mut EntityCommands) + Send + Sync>>,
+    pub(crate) bundle_modifiers: Vec<Arc<dyn Fn(&mut EntityCommands) + Send + Sync>>,
     pub(crate) temporary_observers: Vec<ObserverGenerator>,
     pub(crate) retained_observers: Vec<ObserverGenerator>,
 }
@@ -95,8 +95,8 @@ impl Modifier {
             true => self.children.clone(),
             false => other.children.clone(),
         };
-        self.conditional_bundles
-            .extend(other.conditional_bundles.iter().cloned());
+        self.bundle_modifiers
+            .extend(other.bundle_modifiers.iter().cloned());
         self.temporary_observers
             .extend(other.temporary_observers.iter().cloned());
         self.retained_observers
@@ -124,6 +124,17 @@ impl<T: Modify + Compose> ModifyFunctions<T> for T {
         self
     }
 
+    fn with_bundle<B: Bundle + Clone>(mut self, bundle: B) -> Self::Target {
+        let bundle_modifier = Arc::new(move |entity: &mut EntityCommands| {
+            entity.try_insert(bundle.clone());
+        });
+
+        let modifier = self.modifier();
+        modifier.bundle_modifiers.push(bundle_modifier);
+
+        self
+    }
+
     fn with_bundle_if<B: Bundle + Clone>(mut self, condition: bool, bundle: B) -> Self::Target {
         let bundle_modifier = Arc::new(move |entity: &mut EntityCommands| {
             if condition {
@@ -134,7 +145,7 @@ impl<T: Modify + Compose> ModifyFunctions<T> for T {
         });
 
         let modifier = self.modifier();
-        modifier.conditional_bundles.push(bundle_modifier);
+        modifier.bundle_modifiers.push(bundle_modifier);
 
         self
     }
@@ -208,6 +219,13 @@ pub trait ModifyFunctions<T>: Sized {
     // TODO: When `ObservedBy` is exposed, we should just retain it and SpawnComposable between each rerender and remove
     // all other components, so that we don't need to worry about removing conditional bundle components ourselves. This
     // will make this logic a lot simpler.
+
+    /// Add a bundle to the spawned entity. This is useful when you want to extend the spawned bundle with additional
+    /// components.
+    ///
+    /// For the [`Spawn`](crate::spawn::Spawn)-composable, the conditional bundles are always added before the main
+    /// bundle, which means that the "main" bundle (of the same type) will always override the conditional bundles.
+    fn with_bundle<B: Bundle + Clone>(self, bundle: B) -> Self::Target;
 
     /// Add a bundle to the spawned entity if the condition is true. When the condition is false, we're actively trying
     /// to remove the bundle each time the compsable recomposes.

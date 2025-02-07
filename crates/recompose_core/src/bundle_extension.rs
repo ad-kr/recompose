@@ -24,6 +24,10 @@ impl<B: Bundle + Clone, BE: BundleExtension<B>> ModifyFunctions<PhantomData<B>> 
         self.to_compose().children(children)
     }
 
+    fn with_bundle<B2: Bundle + Clone>(self, bundle: B2) -> Self::Target {
+        self.to_compose().with_bundle(bundle)
+    }
+
     fn with_bundle_if<B2: Bundle + Clone>(self, condition: bool, bundle: B2) -> Self::Target {
         self.to_compose().with_bundle_if(condition, bundle)
     }
