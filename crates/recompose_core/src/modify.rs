@@ -12,7 +12,7 @@ use bevy_ecs::{
     system::{EntityCommands, IntoObserverSystem},
 };
 use bevy_picking::events::{Out, Over, Pointer};
-use std::sync::Arc;
+use std::{hash::Hash, sync::Arc};
 
 // Storing observers directly would be better, but it's a little tricky, so for now we store a function that adds
 // the observer given entity commands.
@@ -146,7 +146,7 @@ impl<T: Modify + Compose> ModifyFunctions<T> for T {
         DynCompose::new(self)
     }
 
-    fn keyed(self, key: usize) -> Keyed
+    fn keyed<H: Hash + Send + Sync>(self, key: H) -> Keyed<H>
     where
         Self: 'static,
     {
@@ -218,7 +218,7 @@ pub trait ModifyFunctions<T>: Sized {
         Self::Target: 'static;
 
     /// Wraps this `Compose` in a `Keyed` compose.
-    fn keyed(self, key: usize) -> Keyed
+    fn keyed<H: Hash + Send + Sync>(self, key: H) -> Keyed<H>
     where
         Self::Target: 'static;
 

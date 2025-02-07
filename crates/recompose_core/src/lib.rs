@@ -16,6 +16,7 @@ use spawn::update_spawn_composables;
 use state::{SetState, StateChanged, StateSetter, StateSetterAction};
 use std::{
     collections::{HashMap, HashSet, VecDeque},
+    hash::{DefaultHasher, Hash, Hasher},
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -128,17 +129,17 @@ impl<C: Compose + 'static, F: (Fn(&mut Scope) -> C) + Send + Sync> Compose for F
 
 impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
     fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
-        let scope_ids = cx.use_state(HashMap::<usize, ScopeId>::new());
+        let scope_ids = cx.use_state(HashMap::<u64, ScopeId>::new());
 
         let mut modified_scope_ids = (*scope_ids).clone();
 
-        let keys = self.iter().map(|k| k.key()).collect::<Vec<_>>();
+        let keys = self.iter().map(|k| k.get_hashed()).collect::<Vec<_>>();
 
         let mut unique_keys = HashSet::new();
         let duplicate_key = keys.iter().find(|key| !unique_keys.insert(*key));
 
         if let Some(duplicate_key) = duplicate_key {
-            panic!("Duplicate key found: {:?}", duplicate_key);
+            panic!("Duplicate key with hash {:?} found.", duplicate_key);
         }
 
         let parent_entity = match cx.entity {
@@ -152,7 +153,7 @@ impl<K: Compose + Key + Clone + 'static> Compose for Vec<K> {
         };
 
         for (index, key_compose) in self.iter().enumerate() {
-            let key = key_compose.key();
+            let key = key_compose.get_hashed();
             let scope_id = scope_ids.get(&key);
             let scope =
                 scope_id.and_then(|scope_id| cx.children.iter_mut().find(|s| s.id == *scope_id));
@@ -264,7 +265,14 @@ impl_compose_for_tuple!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
 // ===
 
 pub trait Key: Send + Sync {
-    fn key(&self) -> usize;
+    fn key(&self) -> &impl Hash;
+
+    fn get_hashed(&self) -> u64 {
+        let hash = self.key();
+        let mut hasher = DefaultHasher::new();
+        hash.hash(&mut hasher);
+        hasher.finish()
+    }
 }
 
 /// A trait that (re)composes and decomposes a scope. It is used to act as a "wrapper" for the `Compose` trait, which

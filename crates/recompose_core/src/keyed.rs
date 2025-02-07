@@ -1,13 +1,14 @@
 use crate::{dyn_compose::DynCompose, Compose, Key, Scope};
+use std::hash::Hash;
 
 #[derive(Clone)]
-pub struct Keyed {
-    key: usize,
+pub struct Keyed<H: Hash + Send + Sync> {
+    key: H,
     compose: DynCompose,
 }
 
-impl Keyed {
-    pub fn new<C: Compose + 'static>(key: usize, compose: C) -> Self {
+impl<H: Hash + Send + Sync> Keyed<H> {
+    pub fn new<C: Compose + 'static>(key: H, compose: C) -> Self {
         Self {
             key,
             compose: DynCompose::new(compose),
@@ -15,7 +16,7 @@ impl Keyed {
     }
 }
 
-impl Compose for Keyed {
+impl<H: Hash + Send + Sync> Compose for Keyed<H> {
     fn compose<'a>(&self, cx: &mut Scope) -> impl Compose + 'a {
         self.compose.compose(cx)
     }
@@ -33,8 +34,8 @@ impl Compose for Keyed {
     }
 }
 
-impl Key for Keyed {
-    fn key(&self) -> usize {
-        self.key
+impl<H: Hash + Send + Sync + Clone> Key for Keyed<H> {
+    fn key(&self) -> &impl Hash {
+        &self.key
     }
 }

@@ -1,11 +1,10 @@
-use std::hash::{DefaultHasher, Hash, Hasher};
-
 use bevy::{
     color::palettes::tailwind,
     input::{self, keyboard::KeyboardInput},
     prelude::*,
 };
 use recompose::prelude::*;
+use std::hash::Hash;
 
 fn main() {
     App::new()
@@ -31,10 +30,10 @@ fn setup(mut commands: Commands) {
 }
 
 fn todo(cx: &mut Scope) -> impl Compose {
-    let todos = cx.use_state(Vec::<(usize, String)>::from([
-        (0, "Buy milk".to_string()),
-        (1, "Clean room".to_string()),
-        (2, "Do homework".to_string()),
+    let todos = cx.use_state(Vec::from([
+        "Buy milk".to_string(),
+        "Clean room".to_string(),
+        "Do homework".to_string(),
     ]));
 
     let input = cx.use_state(String::from("Hello world"));
@@ -60,8 +59,7 @@ fn todo(cx: &mut Scope) -> impl Compose {
                 .to_compose(),
             todos
                 .iter()
-                .map(|(id, label)| Todo {
-                    id: *id,
+                .map(|label| Todo {
                     label: label.to_string(),
                     all_todos: todos.get_typed_id(),
                 })
@@ -91,14 +89,9 @@ fn todo(cx: &mut Scope) -> impl Compose {
                         return;
                     }
 
-                    // This method of generating the Id assumes that the "todo" value is unique!
-                    let mut hasher = DefaultHasher::new();
-                    input_value.hash(&mut hasher);
-                    let id = hasher.finish() as usize;
-
                     state.modify(&todos, move |todos| {
                         let mut todos = todos.clone();
-                        todos.push((id, input_value.clone()));
+                        todos.push(input_value.clone());
                         todos
                     });
 
@@ -110,21 +103,20 @@ fn todo(cx: &mut Scope) -> impl Compose {
 
 #[derive(Clone)]
 struct Todo {
-    id: usize,
     label: String,
-    all_todos: TypedStateId<Vec<(usize, String)>>,
+    all_todos: TypedStateId<Vec<String>>,
 }
 
 impl Key for Todo {
-    fn key(&self) -> usize {
-        self.id
+    fn key(&self) -> &impl Hash {
+        &self.label
     }
 }
 
 impl Compose for Todo {
     fn compose<'a>(&self, _: &mut Scope) -> impl Compose + 'a {
         let all_todos = self.all_todos;
-        let id = self.id;
+        let label = self.label.clone();
 
         Node {
             display: Display::Flex,
@@ -151,9 +143,10 @@ impl Compose for Todo {
                 modifier: Modifier::default(),
             }
             .observe(move |_: Trigger<Pointer<Click>>, mut state: SetState| {
+                let label = label.clone();
                 state.modify(all_todos, move |todos| {
                     let mut todos = todos.clone();
-                    todos.retain(|(todo_id, _)| *todo_id != id);
+                    todos.retain(|todo_label| *todo_label != label);
                     todos
                 });
             }),

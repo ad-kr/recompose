@@ -7,7 +7,7 @@ use crate::{
     Compose,
 };
 use bevy_ecs::{bundle::Bundle, event::Event, system::IntoObserverSystem};
-use std::marker::PhantomData;
+use std::{hash::Hash, marker::PhantomData};
 
 /// Trait that allows for easier conversion of `Bundle` into `Spawn`.
 pub trait BundleExtension<B: Bundle + Clone>: Sized {
@@ -32,7 +32,7 @@ impl<B: Bundle + Clone, BE: BundleExtension<B>> ModifyFunctions<PhantomData<B>> 
         self.to_compose().with_bundle(condition, bundle)
     }
 
-    fn keyed(self, key: usize) -> Keyed {
+    fn keyed<H: Hash + Send + Sync>(self, key: H) -> Keyed<H> {
         self.to_compose().keyed(key)
     }
 
