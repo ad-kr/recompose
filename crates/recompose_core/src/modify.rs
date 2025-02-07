@@ -146,6 +146,13 @@ impl<T: Modify + Compose> ModifyFunctions<T> for T {
         DynCompose::new(self)
     }
 
+    fn to_option(self) -> Option<Self::Target>
+    where
+        Self: 'static,
+    {
+        Some(self)
+    }
+
     fn keyed<H: Hash + Send + Sync>(self, key: H) -> Keyed<H>
     where
         Self: 'static,
@@ -214,6 +221,11 @@ pub trait ModifyFunctions<T>: Sized {
 
     /// Converts this `Compose` into `DynCompose`.
     fn to_dyn(self) -> DynCompose
+    where
+        Self::Target: 'static;
+
+    /// Wraps this `Compose` in an `Option`.
+    fn to_option(self) -> Option<Self::Target>
     where
         Self::Target: 'static;
 

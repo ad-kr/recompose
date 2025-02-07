@@ -24,12 +24,19 @@ impl<B: Bundle + Clone, BE: BundleExtension<B>> ModifyFunctions<PhantomData<B>> 
         self.to_compose().children(children)
     }
 
+    fn with_bundle<B2: Bundle + Clone>(self, condition: bool, bundle: B2) -> Self::Target {
+        self.to_compose().with_bundle(condition, bundle)
+    }
+
     fn to_dyn(self) -> DynCompose {
         self.to_compose().to_dyn()
     }
 
-    fn with_bundle<B2: Bundle + Clone>(self, condition: bool, bundle: B2) -> Self::Target {
-        self.to_compose().with_bundle(condition, bundle)
+    fn to_option(self) -> Option<Self::Target>
+    where
+        Self::Target: 'static,
+    {
+        self.to_compose().to_option()
     }
 
     fn keyed<H: Hash + Send + Sync>(self, key: H) -> Keyed<H> {
