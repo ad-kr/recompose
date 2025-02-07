@@ -182,11 +182,11 @@ impl Scope<'_> {
     }
 
     /// Sets the value of the given state. The change happens immediately.
-    pub fn set_state<T: Send + Sync + 'static>(&mut self, state: &State<T>, value: T) {
+    pub fn set_state<T: Send + Sync + 'static>(&mut self, state: impl GetStateId<T>, value: T) {
         let state = self
             .states
             .iter_mut()
-            .find(|s| s.id == state.id)
+            .find(|s| s.id == state.get_id())
             .unwrap_or_else(|| panic!("State not found."));
 
         if !state.value.is::<T>() {
@@ -198,30 +198,15 @@ impl Scope<'_> {
     }
 
     /// Sets the value of the given state without triggering a recomposition. The change happens immediately.
-    pub fn set_state_unchanged<T: Send + Sync + 'static>(&mut self, state: &State<T>, value: T) {
-        let state = self
-            .states
-            .iter_mut()
-            .find(|s| s.id == state.id)
-            .unwrap_or_else(|| panic!("State not found."));
-
-        if !state.value.is::<T>() {
-            panic!("State value type mismatch.");
-        }
-
-        state.value = Arc::new(value);
-    }
-
-    /// Sets the value of a state with a given id. The change happens immediately.
-    pub fn set_state_with_id<T: Send + Sync + 'static>(
+    pub fn set_state_unchanged<T: Send + Sync + 'static>(
         &mut self,
-        state_id: TypedStateId<T>,
+        state: impl GetStateId<T>,
         value: T,
     ) {
         let state = self
             .states
             .iter_mut()
-            .find(|s| s.id == state_id.get_id())
+            .find(|s| s.id == state.get_id())
             .unwrap_or_else(|| panic!("State not found."));
 
         if !state.value.is::<T>() {
@@ -229,7 +214,6 @@ impl Scope<'_> {
         }
 
         state.value = Arc::new(value);
-        state.changed = StateChanged::Queued;
     }
 
     pub(crate) fn get_state_by_index<T: Any + Send + Sync>(&self, index: usize) -> State<T> {
