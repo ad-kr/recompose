@@ -133,9 +133,9 @@ scope's state changes, or when the parent composable "recomposes".
 
 # Compatibility with Bevy
 
-| Bevy | recompose     |
-| ---- | ------------- |
-| 0.15 | 0.1-0.2       |
+| Bevy | recompose |
+| ---- | --------- |
+| 0.15 | 0.1-0.3   |
 
 # Motivation
 
