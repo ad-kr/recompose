@@ -135,7 +135,7 @@ scope's state changes, or when the parent composable "recomposes".
 
 | Bevy | recompose |
 | ---- | --------- |
-| 0.15 | 0.1-0.3   |
+| 0.15 | 0.1-0.4   |
 
 # Motivation
 
