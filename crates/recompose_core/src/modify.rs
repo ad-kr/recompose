@@ -267,6 +267,6 @@ pub trait ModifyFunctions<T>: Sized {
         observer: impl IntoObserverSystem<E, B2, M> + Clone + Sync,
     ) -> Self::Target;
 
-    /// Binds the given `State<bool>` or `StateRef<bool>` to the hovered state of the entity.
+    /// Binds the given state to the hovered state of the entity.
     fn bind_hover(self, hover_state: impl GetStateId<bool>) -> Self::Target;
 }
