@@ -156,7 +156,7 @@ impl<T: Modify + Compose> ModifyFunctions<T> for T {
         DynCompose::new(self)
     }
 
-    fn to_option(self) -> Option<Self::Target> {
+    fn some(self) -> Option<Self::Target> {
         Some(self)
     }
 
@@ -239,12 +239,12 @@ pub trait ModifyFunctions<T>: Sized {
         Self::Target: 'static;
 
     /// Wraps this `Compose` in `Some`.
-    fn to_option(self) -> Option<Self::Target>;
+    fn some(self) -> Option<Self::Target>;
 
     /// Wraps this `Compose` in `Some` if the condition is met, otherwise returns `None`.
-    fn to_option_if(self, condition: bool) -> Option<Self::Target> {
+    fn some_if(self, condition: bool) -> Option<Self::Target> {
         match condition {
-            true => self.to_option(),
+            true => self.some(),
             false => None,
         }
     }
