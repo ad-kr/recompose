@@ -14,7 +14,7 @@ fn setup(mut commands: Commands) {
     commands.spawn((Root::new(squares_or_circles), Node::default()));
 }
 
-fn squares_or_circles(cx: &mut Scope) -> impl Compose {
+fn squares_or_circles<'a>(cx: &mut Scope) -> impl Compose + use<'a> {
     let count = cx.use_state(0);
 
     let is_circle = (*count / 50) % 2 == 0;

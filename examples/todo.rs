@@ -29,7 +29,7 @@ fn setup(mut commands: Commands) {
     ));
 }
 
-fn todo(cx: &mut Scope) -> impl Compose {
+fn todo<'a>(cx: &mut Scope) -> impl Compose + use<'a> {
     let todos = cx.use_state(Vec::from([
         "Buy milk".to_string(),
         "Clean room".to_string(),

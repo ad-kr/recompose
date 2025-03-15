@@ -14,7 +14,7 @@ fn setup(mut commands: Commands) {
     commands.spawn((Root::new(squares), Node::default()));
 }
 
-fn squares(cx: &mut Scope) -> impl Compose {
+fn squares<'a>(cx: &mut Scope) -> impl Compose + use<'a> {
     let count = cx.use_state(0);
 
     cx.set_state(&count, *count + 1);

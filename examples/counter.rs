@@ -14,7 +14,7 @@ fn setup(mut commands: Commands) {
     commands.spawn((Root::new(counter), Node::default()));
 }
 
-fn counter(cx: &mut Scope) -> impl Compose {
+fn counter<'a>(cx: &mut Scope) -> impl Compose + use<'a> {
     let count = cx.use_state(0);
 
     Node {

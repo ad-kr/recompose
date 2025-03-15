@@ -1,7 +1,7 @@
 use crate::{
+    ChildIndex, ChildOrder, Compose, Root, Scope, SetState,
     modify::{Modifier, Modify},
     scope::ScopeId,
-    ChildIndex, ChildOrder, Compose, Root, Scope, SetState,
 };
 use bevy_ecs::{
     bundle::Bundle,
@@ -58,8 +58,8 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
         cx.use_system_once(move |mut state: SetState, mut commands: Commands| {
             let mut ec = commands.spawn(SpawnComposable(scope_id));
 
-            retained_observer_generators.iter().for_each(|gen| {
-                gen.generate(&mut ec);
+            retained_observer_generators.iter().for_each(|generator| {
+                generator.generate(&mut ec);
             });
 
             state.set(&entity, Some(ec.id()));
@@ -105,7 +105,7 @@ impl<B: Bundle + Clone> Compose for Spawn<B> {
 
                     let observer_entities = temporary_observer_generators
                         .iter()
-                        .map(|gen| gen.generate(&mut ec))
+                        .map(|generator| generator.generate(&mut ec))
                         .collect::<Vec<_>>();
 
                     state.set_unchanged(&temporary_observers, observer_entities);
@@ -145,7 +145,7 @@ pub fn update_spawn_composables(
 ) {
     let spawn_composable_lookup = spawn_composables
         .iter()
-        .map(|sc| (sc.1 .0, sc.0))
+        .map(|sc| (sc.1.0, sc.0))
         .collect::<BTreeMap<_, _>>();
 
     // It would make more sense to iterate over `spawn_composables`, but it is easier to just itarate over the roots to

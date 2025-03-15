@@ -15,7 +15,7 @@ fn setup(mut commands: Commands) {
 }
 
 // `Fn(&mut Scope) -> impl Compose` implements Compose, so we can use functions for simple composables.
-fn squares(cx: &mut Scope) -> impl Compose {
+fn squares<'a>(cx: &mut Scope) -> impl Compose + use<'a> {
     let count = cx.use_state(42);
 
     Node {

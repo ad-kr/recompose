@@ -23,7 +23,7 @@ fn setup(mut commands: Commands) {
 // value.
 const ELAPSED_ID: TypedStateId<f64> = TypedStateId::new(0);
 
-fn timer(cx: &mut Scope) -> impl Compose {
+fn timer<'a>(cx: &mut Scope) -> impl Compose + use<'a> {
     let elapsed_secs = cx.use_state_with_id(ELAPSED_ID, 0.0);
 
     (
