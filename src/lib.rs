@@ -127,7 +127,7 @@
 //! # Compatibility with Bevy
 //! | Bevy | recompose |
 //! | ---- | --------- |
-//! | 0.15 | 0.1-0.4   |
+//! | 0.15 | 0.1-0.5   |
 //!
 //! # Motivation
 //! Recompose is heavily inspired by the [actuate](https://docs.rs/actuate/) crate, which also provides a declarative

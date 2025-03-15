@@ -3350,7 +3350,7 @@ dependencies = [
 
 [[package]]
 name = "recompose"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy",
  "recompose_core",
@@ -3358,7 +3358,7 @@ dependencies = [
 
 [[package]]
 name = "recompose_core"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
